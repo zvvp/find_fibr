@@ -2,30 +2,73 @@ from PyQt6.QtWidgets import QApplication, QFileDialog
 import sys
 import numpy as np
 import pyqtgraph as pg
-from scipy.signal import savgol_filter, iirpeak, lfilter, filtfilt, butter
+from scipy.signal import savgol_filter, iirpeak, lfilter, filtfilt, butter, medfilt
+from functions import get_number_of_peaks
 
 
 app = QApplication(sys.argv)
 
-p = pg.plot()
-p.showGrid(x=True, y=True)
+# p = pg.plot()
+# p.showGrid(x=True, y=True)
+p1 = pg.plot()
+p1.showGrid(x=True, y=True)
 
-f_name = QFileDialog.getOpenFileName()[0]
-print(f_name)
-ecg = np.fromfile(f_name, dtype=np.int16, offset=1024, count=900_000)
+ch1 = np.load("d:/Kp_01/clean_lead1.npy")
+ch2 = np.load("d:/Kp_01/clean_lead2.npy")
+ch3 = np.load("d:/Kp_01/clean_lead3.npy")
+# ch = ch1.copy()
 
-ch1 = (-ecg[::3] + 1024) / 100
-ch2 = (-ecg[1::3] + 1024) / 100
-ch3 = (-ecg[2::3] + 1024) / 100
-ch1 = ch1 - np.mean(ch1)
-ch2 = ch2 - np.mean(ch2)
-ch3 = ch3 - np.mean(ch3)
-ch = ch3.copy()
+def get_p2p(signal, window_size):
+    peak_to_peak = []
+    for i in range(len(signal)):
+        window = signal[i:i+window_size]
+        peak_to_peak.append(np.max(window) - np.min(window))
+    return np.array(peak_to_peak)
 
-n = 4000
-x = np.arange(n)
-nous50 = np.ones(n)*np.sin(2*np.pi*50*x/250)
-ch[:n] += nous50 * 0.15
+def del_isoline(ch):
+    isoline = medfilt(ch, 41)
+    out = ch - isoline
+    return out
+def get_fragment(start, stop, lead):
+    t = stop - start
+    print(t)
+    shift = 32
+    k1 = 0.8
+    k2 = 0.615   # 0.63
+    start = start + int((t * k1 + shift) * k2)
+    # start = start + int(0.35 * t) + 36
+    stop = stop - int(0.065 * t)
+    fragment = lead[start:stop]
+    # fragment = lead[start + int(0.15 * t):stop - int(0.04 * t)]
+    return fragment
+start = 6216943
+stop = 6217095
+p1.plot(ch1[start-400:stop+400])
+p1.plot(ch2[start-400:stop+400]-2)
+p1.plot(ch3[start-400:stop+400]-4)
+fragment1 = get_fragment(start, stop, ch1)
+fragment2 = get_fragment(start, stop, ch2)
+fragment3 = get_fragment(start, stop, ch3)
+
+# p.plot(fragment1, pen='c')
+# p.plot(fragment2 - 1, pen='c')
+# p.plot(fragment3 - 2, pen='c')
+b, a = butter(2, 11, 'low', fs=250) #  2, 8, 'low', fs=250 3, 10
+bh, ah = butter(1, 0.08, 'high', fs=250) # 1, 0.07, 'high', fs=250 1, 0.08
+fragment1 = filtfilt(b, a, fragment1)
+fragment1 = filtfilt(bh, ah, fragment1)
+fragment2 = filtfilt(b, a, fragment2)
+fragment2 = filtfilt(bh, ah, fragment2)
+fragment3 = filtfilt(b, a, fragment3)
+fragment3 = filtfilt(bh, ah, fragment3)
+print(get_number_of_peaks(fragment1))
+print(get_number_of_peaks(fragment2))
+print(get_number_of_peaks(fragment3))
+# p.plot(fragment1, pen='r')
+# p.plot(fragment2 - 1, pen='r')
+# p.plot(fragment3 - 2, pen='r')
+
+sys.exit(app.exec())
 
 def filt12(ch):
     fch12 = np.zeros(ch.size)
@@ -40,23 +83,6 @@ def filt50(ch):
     fch50 = iirpeak(50, 25, 250)
     return fch50
 
-# def clean_ch(ch):
-#     fch12 = np.zeros(ch.size)
-#     spec12 = np.zeros(ch.size)
-#     fch50 = np.zeros(ch.size)
-#     spec50 = np.zeros(ch.size)
-#     for i in np.arange(ch.size - 10):
-#         fch50[i] = 0.1382 * ch[i - 2] + 0.3618 * ch[i - 1] + 0.3618 * ch[i + 1] + 0.1382 * ch[i + 2]
-#         spec50[i] = np.abs(fch50[i] - ch[i])
-#         fch12[i] = 0.1382 * ch[i - 3] + 0.3618 * ch[i - 2] + 0.3618 * ch[i + 2] + 0.1382 * ch[i + 3]
-#         # fch12[i] = 0.5 * ch[i - 2] + 0.5 * ch[i + 2]
-#         spec12[i] = np.abs(fch12[i] - ch[i])
-#     spec50 = savgol_filter(spec50, 31, 0)
-#     spec12 = savgol_filter(spec12, 31, 0)
-#     spec50 = spec50#**2 * 10 #+ 0.15
-#     spec12 = spec12#**2 * 10
-#     ch[spec50 > spec12] = fch50[spec50 > spec12]
-#     return spec12, spec50
 
 def clean_ch(ch):
     b50, a50 = iirpeak(50, 10, 250)
@@ -64,20 +90,12 @@ def clean_ch(ch):
     bl, al = butter(2, 20, 'low', fs=250)
     out = ch.copy()
     fch = filtfilt(bl, al, ch)
-    spec50 = np.abs(lfilter(b50, a50, ch))
+    # spec50 = np.abs(lfilter(b50, a50, ch))
+    w = 6
+    spec50 = get_p2p(lfilter(b50, a50, ch), w, 1)
     spec50 = savgol_filter(spec50, 5, 0)*1.4
-    spec12 = np.abs(lfilter(b12, a12, ch))
+    # spec12 = np.abs(lfilter(b12, a12, ch))
+    spec12 = get_p2p(lfilter(b12, a12, ch), w, 1)
     spec12 = savgol_filter(spec12, 7, 0)
     out[spec50 > spec12] = fch[spec50 > spec12]
     return out
-
-fch = clean_ch(ch)
-
-p.plot(ch, pen='m')
-p.plot(fch, pen='y')
-# p.plot(spec50, pen='b')
-# p.plot(spec501, pen='w')
-# p.plot(spec12, pen='y')
-# p.plot(spec121, pen='r')
-
-sys.exit(app.exec())
