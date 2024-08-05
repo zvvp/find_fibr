@@ -3,16 +3,17 @@ import sys
 import numpy as np
 import pyqtgraph as pg
 from scipy.signal import savgol_filter, iirpeak, lfilter, filtfilt, butter, medfilt
-from functions import get_number_of_peaks
+from functions import get_number_of_peaks, get_offset
 
 
 app = QApplication(sys.argv)
 
-# p = pg.plot()
-# p.showGrid(x=True, y=True)
+p = pg.plot()
+p.showGrid(x=True, y=True)
 p1 = pg.plot()
 p1.showGrid(x=True, y=True)
-
+p2 = pg.plot()
+p2.showGrid(x=True, y=True)
 ch1 = np.load("d:/Kp_01/clean_lead1.npy")
 ch2 = np.load("d:/Kp_01/clean_lead2.npy")
 ch3 = np.load("d:/Kp_01/clean_lead3.npy")
@@ -29,44 +30,80 @@ def del_isoline(ch):
     isoline = medfilt(ch, 41)
     out = ch - isoline
     return out
-def get_fragment(start, stop, lead):
+def get_begin_end(start, stop):
     t = stop - start
-    print(t)
-    shift = 32
-    k1 = 0.8
-    k2 = 0.615   # 0.63
-    start = start + int((t * k1 + shift) * k2)
-    # start = start + int(0.35 * t) + 36
-    stop = stop - int(0.065 * t)
-    fragment = lead[start:stop]
-    # fragment = lead[start + int(0.15 * t):stop - int(0.04 * t)]
-    return fragment
-start = 6216943
-stop = 6217095
-p1.plot(ch1[start-400:stop+400])
-p1.plot(ch2[start-400:stop+400]-2)
-p1.plot(ch3[start-400:stop+400]-4)
-fragment1 = get_fragment(start, stop, ch1)
-fragment2 = get_fragment(start, stop, ch2)
-fragment3 = get_fragment(start, stop, ch3)
+    if t < 80:
+        len_fragment = int(np.round(0.2 * t))
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment
+    elif 90 > t >= 80:
+        len_fragment = int(np.round(0.22 * t))
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment
+    elif 100 > t >= 90:
+        len_fragment = int(np.round(0.25 * t))  #  np.round(0.20 * t)
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment
+    elif 120 > t >= 100:
+        len_fragment = int(np.round(0.28 * t))
+        begin = stop - len_fragment - 7   #  -12
+        end = begin + len_fragment
+    elif 150 > t >= 120:
+        len_fragment = int(np.round(0.28 * t))
+        begin = stop - len_fragment - 7   #  -12
+        end = begin + len_fragment
+    elif 200 > t >= 150:
+        len_fragment = int(np.round(0.29 * t))
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment
+    elif 250 > t >= 200:
+        len_fragment = int(np.round(0.3 * t))
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment
+    elif t >= 250:
+        len_fragment = int(np.round(0.3 * t))
+        begin = stop - len_fragment - 7
+        end = begin + len_fragment      
+    return begin, end
 
-# p.plot(fragment1, pen='c')
-# p.plot(fragment2 - 1, pen='c')
-# p.plot(fragment3 - 2, pen='c')
-b, a = butter(2, 11, 'low', fs=250) #  2, 8, 'low', fs=250 3, 10
-bh, ah = butter(1, 0.08, 'high', fs=250) # 1, 0.07, 'high', fs=250 1, 0.08
+start = 134206
+stop = 134322
+print(stop - start)
+
+p1.plot(ch1[start-500:stop+500])
+p1.plot(ch2[start-500:stop+500]-2)
+p1.plot(ch3[start-500:stop+500]-4)
+
+begin, end = get_begin_end(start, stop)
+offset = get_offset(stop, ch1, ch2, ch3)
+begin = begin - offset
+end = end - offset
+fragment1 = ch1[begin:end]
+fragment2 = ch2[begin:end]
+fragment3 = ch3[begin:end]
+
+b, a = butter(2, 14, 'low', fs=250) #  butter(2, 14, 'low', fs=250)
+bh, ah = butter(1, 0.7, 'high', fs=250) # 1, 0.7, 'high', fs=250
 fragment1 = filtfilt(b, a, fragment1)
 fragment1 = filtfilt(bh, ah, fragment1)
 fragment2 = filtfilt(b, a, fragment2)
 fragment2 = filtfilt(bh, ah, fragment2)
 fragment3 = filtfilt(b, a, fragment3)
 fragment3 = filtfilt(bh, ah, fragment3)
-print(get_number_of_peaks(fragment1))
-print(get_number_of_peaks(fragment2))
-print(get_number_of_peaks(fragment3))
-# p.plot(fragment1, pen='r')
-# p.plot(fragment2 - 1, pen='r')
-# p.plot(fragment3 - 2, pen='r')
+print(get_number_of_peaks(fragment1), get_number_of_peaks(fragment2), get_number_of_peaks(fragment3))
+
+p2.plot(fragment1, pen='r')
+p2.plot(fragment2 - 1, pen='r')
+p2.plot(fragment3 - 2, pen='r')
+
+p.plot(ch1[start:stop], pen='r')
+p.plot(ch2[start:stop] - 1, pen='r')
+p.plot(ch3[start:stop] - 2, pen='r')
+t = stop - start
+l1 = t - stop + begin
+l2 = l1 + end - begin
+p.addLine(l1, pen='c')
+p.addLine(l2, pen='c')
 
 sys.exit(app.exec())
 

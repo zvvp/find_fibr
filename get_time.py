@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     fname = QFileDialog.getOpenFileName()[0]
 
-    get_time_qrs(8787628, fname)
+    get_time_qrs(5310980, fname)
 
     sys.exit()
 
