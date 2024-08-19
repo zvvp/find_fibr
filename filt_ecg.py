@@ -66,13 +66,13 @@ def get_begin_end(start, stop):
         end = begin + len_fragment      
     return begin, end
 
-start = 134206
-stop = 134322
+start = 12004051
+stop = 12004245
 print(stop - start)
 
-p1.plot(ch1[start-500:stop+500])
-p1.plot(ch2[start-500:stop+500]-2)
-p1.plot(ch3[start-500:stop+500]-4)
+p1.plot(ch1[start-600:stop+600])
+p1.plot(ch2[start-600:stop+600]-2)
+p1.plot(ch3[start-600:stop+600]-4)
 
 begin, end = get_begin_end(start, stop)
 offset = get_offset(stop, ch1, ch2, ch3)

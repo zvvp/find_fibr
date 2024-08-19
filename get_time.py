@@ -13,7 +13,7 @@ def get_time_qrs(addr, fname):
             start_h = int(head[150:152])
             start_m = int(head[153:155])
             start_s = int(head[156:158])
-    s = addr * 4 //1000
+    s = addr * 4 // 1000
     m = s // 60
     s = s % 60
     s = s + start_s

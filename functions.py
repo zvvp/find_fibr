@@ -17,12 +17,6 @@ def get_start_shift(pos_h, pos_m, pos_s):
             start_h = int(head[150:152])
             start_m = int(head[153:155])
             start_s = int(head[156:158])
-    # pos_h = start_h
-    # pos_m = start_m
-    # pos_s = start_s
-    # pos_h = 19
-    # pos_m = 43
-    # pos_s = 00
     n = ((pos_h - start_h) * 3600 + (pos_m - start_m) * 60 + pos_s - start_s) * 250
     return n
 
@@ -33,7 +27,17 @@ def get_r_pos():
             if ';' in line:
                 r = int(line.split(';')[0])
                 out.append(r)
-    return out
+    return np.array(out)
+
+def get_intervals():
+    out = []
+    with open("C:/EcgVar/B.txt", "r") as f:
+        for line in f:
+            if ';' in line:
+                interval = int(line.split(';')[1])
+                out.append(interval)
+    return np.array(out)
+
 
 def del_isoline(ch):
     isoline = medfilt(ch, 151)
@@ -58,52 +62,74 @@ def get_fibr(lead1, lead2, lead3):
     with open("C:/EcgVar/B1.txt", "r+") as f:    
         lines = f.readlines()
         f.seek(0)
-        prev_f = 0
         for i, line in enumerate(lines):
-            if (i > 13) and (i < len(lines) - 2): # i > 13   i < len(lines) - 1
+            if (i > 14) and (i < len(lines) - 2): # i > 13   i < len(lines) - 1
                 stop = int(line.split(';')[0])
-                form1 = int(lines[i-1].split(':')[1])
-                form2 = int(line.split(':')[1])
-                form3 = int(lines[i+1].split(':')[1])
-                if (';N' in line) and (not ';U' in lines[i + 1]) and (not ';V' in lines[i + 1]) and (not ';U' in lines[i - 1]) and (not ';V' in lines[i - 1]):
-                    period1 = int(lines[i-1].split(';')[1])
-                    period2 = int(lines[i+1].split(';')[1])
+                # form_2 = int(lines[i-2].split(':')[1])
+                form_1 = int(lines[i-1].split(':')[1])
+                form = int(line.split(':')[1])
+                # form1 = int(lines[i+1].split(':')[1])
+                if (';N' in line):
+                    period_2 = int(lines[i-2].split(';')[1])
+                    period_1 = int(lines[i-1].split(';')[1])
                     period = int(line.split(';')[1])
-                    t = np.array([period1, period, period2])
+                    period1 = int(lines[i+1].split(';')[1])
+                    period2 = int(lines[i+2].split(';')[1])
+                    t = np.array([period_2, period_1, period, period1, period2])
+                    mean_t = np.mean(t[:-3])  # mean(t[:-1])
                     std_t = np.std(t)
-                    t_ng = np.array([period1, (period + period2) / 2])
-                    std_t_ng = np.std(t_ng)
-                    mean_t = np.mean(t)
-                    per_std_t = std_t / mean_t * 100
+                    dp_1_2 = period_1 - period_2
+                    dp0_1 = period - period_1
+                    dp10 = period1 - period
+                    # kv1 = period2 - period_1
+                    per_std_t = std_t        
                     begin, end = get_begin_end(start, stop)
                     offset = get_offset(stop, lead1, lead2, lead3)
                     begin = begin - offset
                     end = end - offset
-                    if (period > 50) and (period < mean_t * 3.0):
-                        fragment1 = lead1[begin:end]
-                        fragment2 = lead2[begin:end]
-                        fragment3 = lead3[begin:end]
-                        fragment1 = filtfilt(b, a, fragment1)
-                        fragment2 = filtfilt(b, a, fragment2)
-                        fragment3 = filtfilt(b, a, fragment3)
-                        fragment1 = filtfilt(bh, ah, fragment1)
-                        fragment2 = filtfilt(bh, ah, fragment2)
-                        fragment3 = filtfilt(bh, ah, fragment3)                          
-                        number_of_peaks1 = get_number_of_peaks(fragment1)
-                        number_of_peaks2 = get_number_of_peaks(fragment2)
-                        number_of_peaks3 = get_number_of_peaks(fragment3)
-                        kv = (period2 - period) / (period2 + period) * 100.0
-                        sum_peaks12 = number_of_peaks1 + number_of_peaks2
-                        sum_peaks13 = number_of_peaks1 + number_of_peaks3
-                        sum_peaks23 = number_of_peaks2 + number_of_peaks3
-                        if (kv > 5.5) and (form1 == form2) and (form3 == form2) and (std_t_ng < 10.0):
-                            line = line.replace(';N', ';S')
-                            # if mean_t <= 190.0:
-                            #     line = line.replace(';N', ';S')
-                            # elif (mean_t > 190.0) and ((number_of_peaks1 == 0) or (number_of_peaks2 == 0) or (number_of_peaks3 == 0)):
-                            #     line = line.replace(';N', ';S')
+                    if (period > 30) and (period < 900):
+                        if (t[2] / t[1] < 0.95) \
+                                and (t[3] > t[1] * 1.05) and (np.abs(dp_1_2) < 9):
+                            if (form == 0):
+                                line = line.replace(';N', ';A')
+                                lines[i+1] = lines[i+1].replace(';N', ';A')
+                            elif (form_1 == 0):
+                                line = line.replace(';N', ';A')
+                                lines[i-1] = lines[i-1].replace(';N', ';A')
+                            else:
+                                line = line.replace(';N', ';S')
+                        elif (t[2] / t[1] < 0.9) and (('S' in lines[i-2]) or ('V' in lines[i-2])) \
+                                and (dp10 > -dp0_1 * 0.9) and (dp0_1 < 0):
+                            if (form == 0):
+                                line = line.replace(';N', ';A')
+                                lines[i+1] = lines[i+1].replace(';N', ';A')
+                            elif (form_1 == 0):
+                                line = line.replace(';N', ';A')
+                                lines[i-1] = lines[i-1].replace(';N', ';A')
+                            else:
+                                line = line.replace(';N', ';S')
+                        
                         else:
-                            if (per_std_t > 3.0) and ((sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0)):
+                            begin, end = get_begin_end(start, stop)
+                            offset = get_offset(stop, lead1, lead2, lead3)
+                            begin = begin - offset
+                            end = end - offset
+                            fragment1 = lead1[begin:end]
+                            fragment2 = lead2[begin:end]
+                            fragment3 = lead3[begin:end]
+                            fragment1 = filtfilt(b, a, fragment1)
+                            fragment2 = filtfilt(b, a, fragment2)
+                            fragment3 = filtfilt(b, a, fragment3)
+                            fragment1 = filtfilt(bh, ah, fragment1)
+                            fragment2 = filtfilt(bh, ah, fragment2)
+                            fragment3 = filtfilt(bh, ah, fragment3)                          
+                            number_of_peaks1 = get_number_of_peaks(fragment1)
+                            number_of_peaks2 = get_number_of_peaks(fragment2)
+                            number_of_peaks3 = get_number_of_peaks(fragment3)
+                            sum_peaks12 = number_of_peaks1 + number_of_peaks2
+                            sum_peaks13 = number_of_peaks1 + number_of_peaks3
+                            sum_peaks23 = number_of_peaks2 + number_of_peaks3
+                            if (per_std_t > 300.0) and ((sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0)):
                                 line = line.replace(';N', ';F')
             start = stop
             f.write(line)
@@ -178,3 +204,6 @@ def get_number_of_peaks(fragment):
     else:
         len_peaks = 100  # np.nan
     return len_peaks
+
+
+
