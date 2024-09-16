@@ -1,7 +1,51 @@
 from PyQt6.QtWidgets import QFileDialog
 import pyqtgraph as pg
 import numpy as np
-from scipy.signal import medfilt, savgol_filter, butter, filtfilt
+from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelextrema
+from scipy.stats import pearsonr
+import glob
+
+
+def get_time_from_addr(line):
+    fname = glob.glob("d:/Kp_01/*.ecg")[0]
+    with open(fname, "rb") as f:
+        f.seek(151)
+        dlmt = f.read(1)
+        if dlmt == b":":
+            f.seek(150)
+            start_h = int(f.read(1))
+            f.seek(152)
+            start_m = int(f.read(2))
+            f.seek(155)
+            start_s = int(f.read(2))
+        else:
+            f.seek(150)
+            start_h = int(f.read(2))
+            f.seek(153)
+            start_m = int(f.read(2))
+            f.seek(156)
+            start_s = int(f.read(2))
+    addr = int(line.split(';')[0])
+    s = addr * 4 // 1000
+    m = s // 60
+    s = s % 60
+    s = s + start_s
+    if s >= 60:
+        s = s - 60
+        m = m + 1
+    h = m // 60
+    m = m % 60
+    m = m + start_m
+    if m >= 60:
+        m = m - 60
+        h = h + 1
+    d = h // 24
+    h = h % 24
+    h = h + start_h
+    if h >= 24:
+        h = h - 24
+        d = d + 1
+    return f": {d + 1} день {h}:{m}:{s}\n"
 
 
 def get_start_shift(pos_h, pos_m, pos_s):
@@ -38,7 +82,6 @@ def get_intervals():
                 out.append(interval)
     return np.array(out)
 
-
 def del_isoline(ch):
     isoline = medfilt(ch, 151)
     isoline = savgol_filter(isoline, 51, 0)
@@ -54,62 +97,46 @@ def clean_ch(ch):
     return out
 
 def get_fibr(lead1, lead2, lead3):
-    # b, a = butter(1, 4, 'low', fs=250)
     start = 121
     stop = 122
     b, a = butter(2, 14, 'low', fs=250)   # 2, 14, 'low', fs=250
     bh, ah = butter(1, 0.7, 'high', fs=250)   # 1, 0.7, 'high', fs=250
-    with open("C:/EcgVar/B1.txt", "r+") as f:    
+    with open("C:/EcgVar/B.txt", "r") as f:    
         lines = f.readlines()
-        f.seek(0)
+        ref_t = np.array([200, 100, 300, 200])   # 200, 160, 240, 200
         for i, line in enumerate(lines):
             if (i > 14) and (i < len(lines) - 2): # i > 13   i < len(lines) - 1
                 stop = int(line.split(';')[0])
-                # form_2 = int(lines[i-2].split(':')[1])
                 form_1 = int(lines[i-1].split(':')[1])
                 form = int(line.split(':')[1])
-                # form1 = int(lines[i+1].split(':')[1])
                 if (';N' in line):
                     period_2 = int(lines[i-2].split(';')[1])
                     period_1 = int(lines[i-1].split(';')[1])
                     period = int(line.split(';')[1])
                     period1 = int(lines[i+1].split(';')[1])
                     period2 = int(lines[i+2].split(';')[1])
-                    t = np.array([period_2, period_1, period, period1, period2])
-                    mean_t = np.mean(t[:-3])  # mean(t[:-1])
-                    std_t = np.std(t)
-                    dp_1_2 = period_1 - period_2
-                    dp0_1 = period - period_1
-                    dp10 = period1 - period
-                    # kv1 = period2 - period_1
-                    per_std_t = std_t        
-                    begin, end = get_begin_end(start, stop)
-                    offset = get_offset(stop, lead1, lead2, lead3)
-                    begin = begin - offset
-                    end = end - offset
-                    if (period > 30) and (period < 900):
-                        if (t[2] / t[1] < 0.95) \
-                                and (t[3] > t[1] * 1.05) and (np.abs(dp_1_2) < 9):
+                    tf = np.array([period_2, period_1, period, period1, period2])
+                    diff_t = np.array([np.abs(period_1 - period_2), np.abs(period - period_1), \
+                                       np.abs(period1 - period), np.abs(period2 - period1)])
+                    t = np.array([period_1, period, period1, period2])
+                    max_t = np.max(t)
+                    min_t = np.min(t)
+                    mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
+                    # mean_t = (tf[0] + tf[1] + tf[4]) / 3
+                    # k_fibr = (np.abs(tf[0] - tf[1]) + np.abs(tf[0] - tf[4]) + np.abs(tf[1] - tf[4])) / mean_t
+                    k_fibr = (np.sum(diff_t) - np.max(diff_t) - np.min(diff_t)) / mean_t     
+                    if (min_t > 50) and (max_t < mean_t * 2):
+                        coef_cor = pearsonr(ref_t, t)[0]
+                        if (coef_cor > 0.9) and (t[1] < t[0] * 0.97) and (t[2] > t[0] * 1.03) and (k_fibr < 2.0):  #  (coef_cor > 0.9) and (t[1] < t[0] * 0.97) and (t[2] > t[0] * 1.03) and (k_fibr < 2.0)
                             if (form == 0):
-                                line = line.replace(';N', ';A')
+                                lines[i] = lines[i].replace(';N', ';A')
                                 lines[i+1] = lines[i+1].replace(';N', ';A')
                             elif (form_1 == 0):
-                                line = line.replace(';N', ';A')
+                                lines[i] = lines[i].replace(';N', ';A')
                                 lines[i-1] = lines[i-1].replace(';N', ';A')
                             else:
-                                line = line.replace(';N', ';S')
-                        elif (t[2] / t[1] < 0.9) and (('S' in lines[i-2]) or ('V' in lines[i-2])) \
-                                and (dp10 > -dp0_1 * 0.9) and (dp0_1 < 0):
-                            if (form == 0):
-                                line = line.replace(';N', ';A')
-                                lines[i+1] = lines[i+1].replace(';N', ';A')
-                            elif (form_1 == 0):
-                                line = line.replace(';N', ';A')
-                                lines[i-1] = lines[i-1].replace(';N', ';A')
-                            else:
-                                line = line.replace(';N', ';S')
-                        
-                        else:
+                                lines[i] = lines[i].replace(';N', ';S')
+                        elif (k_fibr > 0.25) and (k_fibr < 0.97):     #   (k_fibr > 0.5) and (coef_cor < 0.8)
                             begin, end = get_begin_end(start, stop)
                             offset = get_offset(stop, lead1, lead2, lead3)
                             begin = begin - offset
@@ -129,11 +156,22 @@ def get_fibr(lead1, lead2, lead3):
                             sum_peaks12 = number_of_peaks1 + number_of_peaks2
                             sum_peaks13 = number_of_peaks1 + number_of_peaks3
                             sum_peaks23 = number_of_peaks2 + number_of_peaks3
-                            if (per_std_t > 300.0) and ((sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0)):
-                                line = line.replace(';N', ';F')
+                            if (sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0):
+                                if (';N' in line):
+                                    if (form == 0):
+                                        lines[i] = lines[i].replace(';N', ';A')
+                                        lines[i+1] = lines[i+1].replace(';N', ';A')
+                                    elif (form_1 == 0):
+                                        lines[i] = lines[i].replace(';N', ';A')
+                                        lines[i-1] = lines[i-1].replace(';N', ';A')
+                                    elif ((';N' in lines[i-2]) or (';F' in lines[i-2])) and ((';N' in lines[i-1]) or (';F' in lines[i-1])) and (';N' in lines[i+1]) and (';N' in lines[i+2]):
+                                        time_qrs = get_time_from_addr(line)
+                                        lines[i] = lines[i][:-1] + time_qrs
+                                        lines[i] = lines[i].replace(';N', ';F')
             start = stop
+    with open("C:/EcgVar/B1.txt", "w") as f:
+        for i, line in enumerate(lines):
             f.write(line)
-        f.truncate()
 
 def get_begin_end(start, stop):
     period = stop - start
@@ -197,13 +235,22 @@ def get_offset(stop, ch1, ch2, ch3):
     sum_slice = ch1[stop - 7: stop] + ch2[stop - 7: stop] + ch3[stop - 7: stop]
     offset = 7 - np.argmax(sum_slice)
     return offset
+
 def get_number_of_peaks(fragment):
-    if np.std(fragment) > 0:
-        peaks = (np.diff(np.sign(np.diff(fragment))) < 0).nonzero()[0] + 1
-        len_peaks = len(peaks)
+    mean_frg = np.mean(fragment)
+    local_max_idx = argrelextrema(fragment, np.greater)[0]
+    local_max_values = fragment[local_max_idx]
+
+    if len(local_max_values) > 0:
+        max_peak = np.max(local_max_values)
     else:
-        len_peaks = 100  # np.nan
-    return len_peaks
+        max_peak = 0
+    if (max_peak - mean_frg) > 0.022:
+        return 1
+    else:
+        return 0
+    
+
 
 
 

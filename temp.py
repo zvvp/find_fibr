@@ -20,6 +20,9 @@ def get_time_qrs(addr, fname):
             start_m = int(f.read(2))
             f.seek(156)
             start_s = int(f.read(2))
+            # start_h = int(head[150:152])
+            # start_m = int(head[153:155])
+            # start_s = int(head[156:158])
     s = addr * 4 // 1000
     m = s // 60
     s = s % 60
@@ -41,7 +44,6 @@ def get_time_qrs(addr, fname):
         d = d + 1
 
     print(f" {d + 1} день {h}:{m}:{s}")
-    # return start_h, start_m, start_s
 
 if __name__ == "__main__":
 
@@ -49,7 +51,6 @@ if __name__ == "__main__":
 
     fname = QFileDialog.getOpenFileName()[0]
 
-    get_time_qrs(11330466, fname)
+    get_time_qrs(1490, fname)
 
     sys.exit()
-

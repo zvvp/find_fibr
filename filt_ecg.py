@@ -10,10 +10,11 @@ app = QApplication(sys.argv)
 
 p = pg.plot()
 p.showGrid(x=True, y=True)
-p1 = pg.plot()
-p1.showGrid(x=True, y=True)
 p2 = pg.plot()
 p2.showGrid(x=True, y=True)
+p1 = pg.plot()
+p1.showGrid(x=True, y=True)
+
 ch1 = np.load("d:/Kp_01/clean_lead1.npy")
 ch2 = np.load("d:/Kp_01/clean_lead2.npy")
 ch3 = np.load("d:/Kp_01/clean_lead3.npy")
@@ -66,8 +67,8 @@ def get_begin_end(start, stop):
         end = begin + len_fragment      
     return begin, end
 
-start = 12004051
-stop = 12004245
+start = 30417
+stop = 30682
 print(stop - start)
 
 p1.plot(ch1[start-600:stop+600])

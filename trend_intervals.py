@@ -20,8 +20,8 @@ diff_intervals = np.diff(intervals)
 # diff_intervals = diff_intervals + np.roll(diff_intervals, 1)
 diff_intervals = np.append(diff_intervals, 0)
 # print(r_pos.size, intervals.size, diff_intervals.size)
-start = 6626047 - 10_000
-stop = 6626182 + 10_000
+start = 4556903 - 10_000
+stop = 4557061 + 10_000
 start_r = np.argwhere(r_pos >= start)[0][0]
 stop_r = np.argwhere(r_pos >= stop)[0][0]
 # print(start_r, stop_r)
