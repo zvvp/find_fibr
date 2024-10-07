@@ -4,6 +4,7 @@ import numpy as np
 from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelextrema
 from scipy.stats import pearsonr
 import glob
+# from numba import njit
 
 
 def get_time_from_addr(line):
@@ -95,12 +96,13 @@ def clean_ch(ch):
     out = filtfilt(b, a, out)
     return out
 
-def get_fibr(lead1, lead2, lead3):
-    start = 121
-    stop = 122
-    b, a = butter(2, 14, 'low', fs=250)   # 2, 14, 'low', fs=250
-    bh, ah = butter(1, 0.7, 'high', fs=250)   # 1, 0.7, 'high', fs=250
-    with open("C:/EcgVar/B.txt", "r") as f:    
+# @njit
+def get_S():
+    # start = 121
+    # stop = 122
+    # b, a = butter(2, 14, 'low', fs=250)   # 2, 14, 'low', fs=250
+    # bh, ah = butter(1, 0.7, 'high', fs=250)   # 1, 0.7, 'high', fs=250
+    with open("C:/EcgVar/B.txt", "r") as f:
         lines = f.readlines()
         ref_t = np.array([200, 100, 300, 200])   # 200, 160, 240, 200
         ref_t1 = np.array([200, 100, 300, 100])
@@ -123,12 +125,12 @@ def get_fibr(lead1, lead2, lead3):
                     max_t = np.max(t)
                     min_t = np.min(t)
                     mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
-                    k_fibr = (np.sum(diff_t) - 2 * np.max(diff_t)) / mean_t**2 * 100    
+                    # k_fibr = (np.sum(diff_t) - 2 * np.max(diff_t)) / mean_t**2 * 100
                     if (min_t > 50) and (max_t < mean_t * 2):
                         coef_cor = pearsonr(ref_t, t)[0]
                         coef_cor1 = pearsonr(ref_t1, t)[0]
                         coef_cor2 = pearsonr(ref_t2, t)[0]
-                        if (((coef_cor > 0.975) and (t[1] < t[0] * 0.97) and (t[0] * 1.05 > (t[1] + t[2]) / 2 > t[0] * 0.93)) \
+                        if (((coef_cor > 0.975) and (t[1] < t[0] * 0.97) and (t[0] * 1.05 > (t[1] + t[2]) / 2 > t[0] * 0.89)) \
                             or ((';S' in lines[i-2]) and (coef_cor2 > 0.9)) or (coef_cor1 > 0.985)):
                             if (form == 0):
                                 lines[i] = lines[i].replace(';N', ';A')
@@ -138,43 +140,8 @@ def get_fibr(lead1, lead2, lead3):
                                 lines[i-1] = lines[i-1].replace(';N', ';A')
                             else:
                                 lines[i] = lines[i].replace(';N', ';S')
-                        # elif (k_fibr > 0.08) and (k_fibr < 0.97):
-                        #     begin, end = get_begin_end(start, stop)
-                        #     offset = get_offset(stop, lead1, lead2, lead3)
-                        #     begin = begin - offset
-                        #     end = end - offset
-                        #     fragment1 = lead1[begin:end]
-                        #     fragment2 = lead2[begin:end]
-                        #     fragment3 = lead3[begin:end]
-                        #     fragment1 = filtfilt(b, a, fragment1)
-                        #     fragment2 = filtfilt(b, a, fragment2)
-                        #     fragment3 = filtfilt(b, a, fragment3)
-                        #     fragment1 = filtfilt(bh, ah, fragment1)
-                        #     fragment2 = filtfilt(bh, ah, fragment2)
-                        #     fragment3 = filtfilt(bh, ah, fragment3)                          
-                        #     number_of_peaks1 = get_number_of_peaks(fragment1)
-                        #     number_of_peaks2 = get_number_of_peaks(fragment2)
-                        #     number_of_peaks3 = get_number_of_peaks(fragment3)
-                        #     sum_peaks12 = number_of_peaks1 + number_of_peaks2
-                        #     sum_peaks13 = number_of_peaks1 + number_of_peaks3
-                        #     sum_peaks23 = number_of_peaks2 + number_of_peaks3
-                        #     if (';N' in line) and ((sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0)):
-                        #         if ((';N' in lines[i-2]) or (';F' in lines[i-2])) and ((';N' in lines[i-1]) or (';F' in lines[i-1])) and (';N' in lines[i+1]) and (';N' in lines[i+2]):
-                        #             time_qrs = get_time_from_addr(line)
-                        #             lines[i] = lines[i][:-1] + time_qrs
-                        #             lines[i] = lines[i].replace(';N', ';F')
-                                # if (';N' in line):
-                                #     if (form == 0):
-                                #         lines[i] = lines[i].replace(';N', ';A')
-                                #         lines[i+1] = lines[i+1].replace(';N', ';A')
-                                #     elif (form_1 == 0):
-                                #         lines[i] = lines[i].replace(';N', ';A')
-                                #         lines[i-1] = lines[i-1].replace(';N', ';A')
-                                #     elif ((';N' in lines[i-2]) or (';F' in lines[i-2])) and ((';N' in lines[i-1]) or (';F' in lines[i-1])) and (';N' in lines[i+1]) and (';N' in lines[i+2]):
-                                #         time_qrs = get_time_from_addr(line)
-                                #         lines[i] = lines[i][:-1] + time_qrs
-                                #         lines[i] = lines[i].replace(';N', ';F')
-            start = stop
+                        pass
+            # start = stop
     with open("C:/EcgVar/B1.txt", "w") as f:
         for i, line in enumerate(lines):
             f.write(line)

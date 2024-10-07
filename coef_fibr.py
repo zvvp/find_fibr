@@ -13,62 +13,78 @@ def get_coef_fibr():
         lines = lines[12:]
         len_lines = len(lines)
         out = np.zeros(len_lines)
-        for i, line in enumerate(lines):
-            if (i > 1) and (i < len_lines - 2) and (not ';V' in lines[i-2]) and (not ';S' in lines[i-2])\
-                and (not ';V' in lines[i-1]) and (not ';S' in lines[i-1])\
-                and (not ';V' in line) and (not ';S' in line)\
-                and (not ';V' in lines[i+1]) and (not ';S' in lines[i+1])\
-                and (not ';V' in lines[i+2]) and (not ';S' in lines[i+2]):
+        for i, line in enumerate(lines, start=2):
+            if i < len_lines - 2:
                 period_2 = int(lines[i-2].split(';')[1])
                 period_1 = int(lines[i-1].split(';')[1])
-                period = int(line.split(';')[1])
+                period = int(lines[i].split(';')[1])
                 period1 = int(lines[i+1].split(';')[1])
                 period2 = int(lines[i+2].split(';')[1])
+                chars = np.array([lines[i-2].split(';')[2][0], lines[i-1].split(';')[2][0], lines[i].split(';')[2][0], lines[i+1].split(';')[2][0], lines[i+2].split(';')[2][0]])
                 tf = np.array([period_2, period_1, period, period1, period2])
-
-                diff_t = np.array([np.abs(period_1 - period_2), np.abs(period - period_1),
-                                   np.abs(period1 - period), np.abs(period2 - period1)])#, np.abs(period2 - period_2)])
-                # sort_diff_t = np.sort(diff_t)
-                mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
-                # mean_t = np.sum(tf) - np.max(tf) - np.min(tf)
-                # out[i] = np.sum(diff_t) / mean_t**2 * 75_000
-                # out[i] = (np.sum(diff_t) - sort_diff_t[-1] - sort_diff_t[-2]) / mean_t**2 * 4_000_000
-                # out[i] = (np.sum(diff_t) - sort_diff_t[-1]) / mean_t**2 * 130_000
-                out[i] = (np.sum(diff_t) - np.max(diff_t)) / mean_t**2 * 350_000
+                # tf0 = np.array([period_2, period_1, period, period1, period2])
+                # max_tf = np.max(tf)
+                # min_tf = np.min(tf)
+                # median_tf = np.median(tf)
+                mean_tf = np.median(tf)
+                # mean_tf3 = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
+                # ind_max = np.argmax(tf)
+                # ind_min = np.argmin(tf)
+                # tf[ind_max] = np.min(tf)
+                # tf[ind_min] = np.min(tf)
+                diff_tf_mean = np.abs(tf - mean_tf)
+                diff_tf_mean = np.sort(diff_tf_mean)
+                diff_tf_mean = diff_tf_mean[:3]
+                sum_diff_tf_mean = np.sum(diff_tf_mean)
+                out[i] = sum_diff_tf_mean / (mean_tf * 0.0014)**2
+                if ('V' in chars) or ('S' in chars):
+                    out[i] = out[i] * 0.5
+                # diff_tf_median = np.abs(tf - median_tf)
+                diff_t = np.abs(np.array([tf[1] - tf[0], tf[2] - tf[1],
+                                    tf[3] - tf[2], tf[4] - tf[3]]))
                 pass
-                # out[i] = (np.sum(diff_t) - np.max(diff_t)) / mean_t**2 * 75_000
-            elif (i > 1) and (i < len_lines - 2):
-                out[i] = out[i-2]
-                out[i-1] = out[i-2]
+        #         if 'F' in chars:
+        #             out[i] = np.sum(diff_t) / np.min(tf)
+        #         elif ('V' in chars) or ('S' in chars):
+        #             out[i] = np.mean(diff_t) / np.max(tf) * 300
+        #             # out[i] = np.mean(diff_t)**2 / sort_tf[2]**2 * 1_000
+        #             # out[i] = np.mean(diff_t)**2 / np.max(tf)**2 * 20_000
+        #         elif not 'A' in chars:
+        #             out[i] = (np.sum(diff_t) - np.mean(diff_t)) / (np.sum(tf) - np.max(tf)) * 2_000
+        #             # out[i] = np.mean(diff_t)**2 / np.max(tf)**2 * 20_000
+        #         else:
+        #             out[i] = median_tf * 0.7
+        out[out > 2000] = 2000
         return out 
 
 app = QApplication(sys.argv)
 
 p = pg.plot()
 p.showGrid(x=True, y=True)
-# ch1 = np.load("d:/Kp_01/clean_lead1.npy")
-# ch2 = np.load("d:/Kp_01/clean_lead2.npy")
-# ch3 = np.load("d:/Kp_01/clean_lead3.npy")
+vline = pg.InfiniteLine(label='{value:0.0F}', movable=True, labelOpts={'position': 0.1, 'color': (250, 250, 200), 'fill': (0, 0, 0), 'movable': True})
+vline.setPen(color='c', width=1)
+vline.setValue(2000)
+vline.setZValue(10)
+p.addItem(vline)
 
 intervals = get_intervals()
 intervals[intervals > 500] = 500
 fintervals = medfilt(intervals, 111)
 # p.plot(intervals, pen="c")
 p.plot(fintervals, pen="c")
-# get_coef_fibr()
 coef_fibr = get_coef_fibr()
 fcoef_fibr = medfilt(coef_fibr, 111)
-# b, a = butter(2, 0.01, 'hp', fs=1.5)
-# fcoef_fibr = filtfilt(b, a, fcoef_fibr)
-# fcoef_fibr = savgol_filter(fcoef_fibr, 100, 1)
-# p.plot(coef_fibr, pen="g")
+
+# b, a = butter(1, 0.001, 'hp', fs=1)
+# fcoef_fibr = np.abs(filtfilt(b, a, fcoef_fibr))
+
 p.plot(fcoef_fibr, pen="r")
 # p.plot(medfilt(intervals*coef_fibr, 111), pen="r")
 # p.setYRange(max=500, min=0)
 
-r_pos = get_r_pos()
-addr = r_pos[53057]
-fname = QFileDialog.getOpenFileName()[0]
-get_time_qrs(addr, fname)
+# r_pos = get_r_pos()
+# addr = r_pos[79963]
+# fname = QFileDialog.getOpenFileName()[0]
+# get_time_qrs(addr, fname)
 
 sys.exit(app.exec())

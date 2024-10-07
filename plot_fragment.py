@@ -121,7 +121,6 @@ def filt50(ch):
     fch50 = iirpeak(50, 25, 250)
     return fch50
 
-
 def clean_ch(ch):
     b50, a50 = iirpeak(50, 10, 250)
     b12, a12 = iirpeak(12, 2.4, 250)
