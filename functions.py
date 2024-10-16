@@ -82,6 +82,30 @@ def get_intervals():
                 out.append(interval)
     return np.array(out)
 
+def parse_B_txt():
+    r_pos = []
+    intervals = []
+    chars = []
+    forms = []
+    with open("C:/EcgVar/B1.txt", "r") as f:
+        for line in f:
+            if ';' in line:
+                temp = int(line.split(';')[0])
+                r_pos.append(temp)
+                temp = int(line.split(';')[1])
+                intervals.append(temp)
+                temp = line.split(';')[2][0]
+                chars.append(temp)
+                temp = int(line.split(':')[1])
+                forms.append(temp)
+        r_pos = np.array(r_pos)
+        intervals = np.array(intervals)
+        chars = np.array(chars)
+        forms = np.array(forms)
+        intervals[intervals < 50]  = 50
+        intervals[intervals > 500]  = 500
+          
+    return r_pos, intervals, chars, forms
 def del_isoline(ch):
     isoline = medfilt(ch, 151)
     isoline = savgol_filter(isoline, 51, 0)
@@ -96,52 +120,116 @@ def clean_ch(ch):
     out = filtfilt(b, a, out)
     return out
 
+def get_periods(lines):
+    period_2 = int(lines[0].split(';')[1])
+    period_1 = int(lines[1].split(';')[1])
+    period = int(lines[2].split(';')[1])
+    period1 = int(lines[3].split(';')[1])
+    period2 = int(lines[4].split(';')[1])
+    return period_2, period_1, period, period1, period2
+
 # @njit
-def get_S():
-    # start = 121
-    # stop = 122
-    # b, a = butter(2, 14, 'low', fs=250)   # 2, 14, 'low', fs=250
-    # bh, ah = butter(1, 0.7, 'high', fs=250)   # 1, 0.7, 'high', fs=250
+def get_S(lead1, lead2, lead3):
+    start = 121
+    stop = 122
+    b, a = butter(2, 14, 'low', fs=250)   # 2, 14, 'low', fs=250
+    bh, ah = butter(1, 0.7, 'high', fs=250)   # 1, 0.7, 'high', fs=250
     with open("C:/EcgVar/B.txt", "r") as f:
         lines = f.readlines()
-        ref_t = np.array([200, 100, 300, 200])   # 200, 160, 240, 200
-        ref_t1 = np.array([200, 100, 300, 100])
-        ref_t2 = np.array([300, 100, 300, 200])
-        for i, line in enumerate(lines):
-            if (i > 14) and (i < len(lines) - 2): # i > 13   i < len(lines) - 1
-                stop = int(line.split(';')[0])
-                form_1 = int(lines[i-1].split(':')[1])
-                form = int(line.split(':')[1])
-                if (';N' in line) and (not ';V' in lines[i-1]) and (not ';S' in lines[i-1]):
-                    period_2 = int(lines[i-2].split(';')[1])
-                    period_1 = int(lines[i-1].split(';')[1])
-                    period = int(line.split(';')[1])
-                    period1 = int(lines[i+1].split(';')[1])
-                    period2 = int(lines[i+2].split(';')[1])
-                    tf = np.array([period_2, period_1, period, period1, period2])
-                    diff_t = np.array([np.abs(period_1 - period_2), np.abs(period - period_1), \
-                                       np.abs(period1 - period), np.abs(period2 - period1)])
-                    t = np.array([period_1, period, period1, period2])
-                    max_t = np.max(t)
-                    min_t = np.min(t)
-                    mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
-                    # k_fibr = (np.sum(diff_t) - 2 * np.max(diff_t)) / mean_t**2 * 100
-                    if (min_t > 50) and (max_t < mean_t * 2):
-                        coef_cor = pearsonr(ref_t, t)[0]
-                        coef_cor1 = pearsonr(ref_t1, t)[0]
-                        coef_cor2 = pearsonr(ref_t2, t)[0]
-                        if (((coef_cor > 0.975) and (t[1] < t[0] * 0.97) and (t[0] * 1.05 > (t[1] + t[2]) / 2 > t[0] * 0.89)) \
-                            or ((';S' in lines[i-2]) and (coef_cor2 > 0.9)) or (coef_cor1 > 0.985)):
-                            if (form == 0):
-                                lines[i] = lines[i].replace(';N', ';A')
-                                lines[i+1] = lines[i+1].replace(';N', ';A')
-                            elif (form_1 == 0):
-                                lines[i] = lines[i].replace(';N', ';A')
-                                lines[i-1] = lines[i-1].replace(';N', ';A')
-                            else:
-                                lines[i] = lines[i].replace(';N', ';S')
-                        pass
-            # start = stop
+    ref_t = np.array([200, 100, 300, 200])   # 200, 160, 240, 200
+    ref_t1 = np.array([200, 100, 300, 100])
+    ref_t2 = np.array([300, 100, 300, 200])
+    for i, line in enumerate(lines):
+        if (i > 14) and (i < len(lines) - 2): # i > 13   i < len(lines) - 1
+            stop = int(lines[i].split(';')[0])
+            form_1 = int(lines[i-1].split(':')[1])
+            form = int(lines[i].split(':')[1])
+            chars = np.array([lines[i-2].split(';')[2][0], lines[i-1].split(';')[2][0], lines[i].split(';')[2][0], lines[i+1].split(';')[2][0], lines[i+2].split(';')[2][0]])
+            if (';N' in line) and (not ';V' in lines[i-1]) and (not ';S' in lines[i-1]):
+                periods = get_periods(lines[i-2:i+3])
+                tf = np.array(periods)
+                t = np.array(periods[1:])
+                median_tf = np.median(tf)
+                diff_tf_median = np.abs(tf - median_tf)
+                diff_tf_median = np.sort(diff_tf_median)
+                diff_tf_median = diff_tf_median[:3]
+                sum_diff_tf_median = np.sum(diff_tf_median)
+                k_fibr = sum_diff_tf_median / (median_tf * 0.0014)**2
+                if ('V' in chars) or ('S' in chars):
+                    k_fibr = k_fibr * 0.5               
+                max_t = np.max(t)
+                min_t = np.min(t)
+                mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
+                if (min_t > 50) and (max_t < mean_t * 2):
+                    coef_cor = pearsonr(ref_t, t)[0]
+                    coef_cor1 = pearsonr(ref_t1, t)[0]
+                    coef_cor2 = pearsonr(ref_t2, t)[0]
+                    if (((coef_cor > 0.975) and (t[1] < t[0] * 0.97) and (t[0] * 1.05 > (t[1] + t[2]) / 2 > t[0] * 0.89)) \
+                        or ((';S' in lines[i-2]) and (coef_cor2 > 0.9)) or (coef_cor1 > 0.985)):
+                        if (form == 0):
+                            lines[i] = lines[i].replace(';N', ';A')
+                            lines[i+1] = lines[i+1].replace(';N', ';A')
+                        elif (form_1 == 0):
+                            lines[i] = lines[i].replace(';N', ';A')
+                            lines[i-1] = lines[i-1].replace(';N', ';A')
+                        else:
+                            lines[i] = lines[i].replace(';N', ';S')
+                    # elif (k_fibr > median_tf):
+                    #     begin, end = get_begin_end(start, stop)
+                    #     offset = get_offset(stop, lead1, lead2, lead3)
+                    #     begin = begin - offset
+                    #     end = end - offset
+                    #     fragment1 = lead1[begin:end]
+                    #     fragment2 = lead2[begin:end]
+                    #     fragment3 = lead3[begin:end]
+                    #     fragment1 = filtfilt(b, a, fragment1)
+                    #     fragment2 = filtfilt(b, a, fragment2)
+                    #     fragment3 = filtfilt(b, a, fragment3)
+                    #     fragment1 = filtfilt(bh, ah, fragment1)
+                    #     fragment2 = filtfilt(bh, ah, fragment2)
+                    #     fragment3 = filtfilt(bh, ah, fragment3)                          
+                    #     number_of_peaks1 = get_number_of_peaks(fragment1)
+                    #     number_of_peaks2 = get_number_of_peaks(fragment2)
+                    #     number_of_peaks3 = get_number_of_peaks(fragment3)
+                    #     sum_peaks12 = number_of_peaks1 + number_of_peaks2
+                    #     sum_peaks13 = number_of_peaks1 + number_of_peaks3
+                    #     sum_peaks23 = number_of_peaks2 + number_of_peaks3
+                    #     # if (';N' in line) and ((sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0)):
+                    #     if (sum_peaks12 == 0) or (sum_peaks13 == 0) or (sum_peaks23 == 0):
+                    #     # if (number_of_peaks1 == 0) or (number_of_peaks2 == 0) or (number_of_peaks3 == 0):
+                    #         # if ((';N' in lines[i-2]) or (';F' in lines[i-2])) and ((';N' in lines[i-1]) or (';F' in lines[i-1])) and (';N' in lines[i+1]) and (';N' in lines[i+2]):
+                    #         time_qrs = get_time_from_addr(lines[i])
+                    #         lines[i] = lines[i][:-1] + time_qrs
+                    #         lines[i] = lines[i].replace(';N', ';F')
+                    #         # time_qrs = get_time_from_addr(lines[i-1])
+                    #         # lines[i-1] = lines[i-1][:-1] + time_qrs                            
+                    #         # lines[i-1] = lines[i-1].replace(';N', ';F')
+                    #         # time_qrs = get_time_from_addr(lines[i+1])
+                    #         # lines[i+1] = lines[i+1][:-1] + time_qrs                            
+                    #         # lines[i+1] = lines[i+1].replace(';N', ';F')
+                    #     elif ('F' in chars) and ((number_of_peaks1 == 0) or (number_of_peaks2 == 0) or (number_of_peaks3 == 0)):
+                    #         time_qrs = get_time_from_addr(lines[i])
+                    #         lines[i] = lines[i][:-1] + time_qrs
+                    #         lines[i] = lines[i].replace(';N', ';F')
+                    #         # time_qrs = get_time_from_addr(lines[i-1])
+                    #         # lines[i-1] = lines[i-1][:-1] + time_qrs                            
+                    #         # lines[i-1] = lines[i-1].replace(';N', ';F')
+                    #         # time_qrs = get_time_from_addr(lines[i+1])
+                    #         # lines[i+1] = lines[i+1][:-1] + time_qrs                            
+                    #         # lines[i+1] = lines[i+1].replace(';N', ';F')
+                    #         #     continue
+                    #         # if (';N' in line):
+                    #         #     if (form == 0):
+                    #         #         lines[i] = lines[i].replace(';N', ';A')
+                    #         #         lines[i+1] = lines[i+1].replace(';N', ';A')
+                    #         #     elif (form_1 == 0):
+                    #         #         lines[i] = lines[i].replace(';N', ';A')
+                    #         #         lines[i-1] = lines[i-1].replace(';N', ';A')
+                    #         #     elif ((';N' in lines[i-2]) or (';F' in lines[i-2])) and ((';N' in lines[i-1]) or (';F' in lines[i-1])) and (';N' in lines[i+1]) and (';N' in lines[i+2]):
+                    #         #         time_qrs = get_time_from_addr(line)
+                    #         #         lines[i] = lines[i][:-1] + time_qrs
+                    #         #         lines[i] = lines[i].replace(';N', ';F')
+        start = stop
     with open("C:/EcgVar/B1.txt", "w") as f:
         for i, line in enumerate(lines):
             f.write(line)
@@ -222,6 +310,51 @@ def get_number_of_peaks(fragment):
         return 1
     else:
         return 0
+    
+def get_coef_fibr(intervals, chars):
+    intervals = intervals.copy()
+    out_f = 0
+    out_not_f = 0
+    out_k = 0
+    len_in = len(intervals)
+    out = np.zeros(len_in)
+    for i in range(50, len_in-5):
+        tf = intervals[i - 3:i + 4]   #  [i-2:i+3]
+        sort_tf = np.sort(tf)
+        mean_sort_tf = np.mean(sort_tf[2:-2])
+        # median_tf = np.median(tf)
+        # # diff_tf = np.abs(tf - median_tf)
+        mean_tf = np.mean(tf)
+        diff_tf = np.abs(tf - mean_tf)
+        diff_tf = np.abs(diff_tf - np.roll(diff_tf, 1))
+        diff_tf = np.sort(diff_tf)
+        sum_diff_tf = np.sum(diff_tf[1:-3])  # diff_tf[:3]
+        # out[i] = sum_diff_tf / mean_tf * 500
+        if ('V' in chars[i - 3:i + 4]) or ('S' in chars[i - 3:i + 4]):
+            # sum_diff_tf = sum_diff_tf * 0.5
+            # mean_sort_tf = mean_sort_tf * 2
+            # coef_fibr = diff_tf[0] / sort_tf[-1] * 2500
+            # coef_fibr = (sum_diff_tf) / (mean_sort_tf * 0.0014) ** 2
+            coef_fibr = np.mean(out[i-50:i])
+            out[i] = coef_fibr
+            intervals[i-1:i+1] = mean_sort_tf
+        else:
+            # coef_fibr = sum_diff_tf * 13
+            coef_fibr = sum_diff_tf / mean_sort_tf * 1300
+            # coef_fibr = sum_diff_tf / (mean_sort_tf * 0.0014) ** 2 # 0.0014
+            # intervals[i] = mean_tf
+            out[i] = coef_fibr
+
+    # out[out > 2000] = 2000
+    # out = np.abs(out - np.roll(out, 1))
+    return out, intervals
+
+def detect(arr, win):
+    out = np.zeros(len(arr))
+    w = win // 2
+    for i in range(w, len(arr)-w):
+        out[i] = np.max(arr[i-w:i+w])
+    return out
     
 
 
