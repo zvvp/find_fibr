@@ -1,8 +1,16 @@
-from functions import parse_B_txt
+from PyQt6.QtWidgets import QApplication
+import sys
+import pyqtgraph as pg
+import numpy as np
 
 
-r_pos, intervals, chars, forms = parse_B_txt()
-print(r_pos.size)
-print(intervals.size)
-print(chars.size)
-print(forms.size)
+app = QApplication(sys.argv)
+
+p = pg.plot()
+p.showGrid(x=True, y=True)
+
+x = np.arange(100, 300)
+y = (1 + 10000 / x**2)
+p.plot(x, y)
+
+sys.exit(app.exec())
