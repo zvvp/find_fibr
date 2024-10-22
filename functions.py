@@ -329,26 +329,20 @@ def get_number_of_peaks(fragment):
 
 
 def get_coef_fibr(intervals, chars):
-    intervals = intervals.copy()
     len_in = len(intervals)
     out = np.zeros(len_in)
-    for i in np.arange(250, len_in - 5):
-        tf = intervals[i - 3:i + 4]  # [i-2:i+3]
-        sort_tf = np.sort(tf)
-        mean_sort_tf = np.mean(sort_tf[2:-2])
-        mean_tf = np.mean(tf)
-        diff_tf = np.abs(tf - np.roll(tf, 1))
-        # diff_tf = np.abs(tf - mean_tf)
-        # diff_tf = np.abs(diff_tf - np.roll(diff_tf, 1))
-        diff_tf = np.sort(diff_tf)
-        sum_diff_tf = np.sum(diff_tf[1:-3])  # diff_tf[:3]
-        if ('V' in chars[i - 3:i + 4]) or ('S' in chars[i - 3:i + 4]):
-            out[i] = np.median(out[i - 80:i])
-            intervals[i-1:i+1] = np.median(intervals[i - 10:i])
-        else:
-            # out[i] = (sum_diff_tf * (1 + 10000 / mean_sort_tf**2))**2 * 0.024
-            out[i] = (sum_diff_tf * (1 + 100000 / np.median(intervals[i - 10:i])**2))**2 * 0.0045
-    return out, intervals
+    for i in np.arange(2, len_in - 3):
+        win_t = intervals[i - 2:i + 3]
+        mean_win_t = np.mean(win_t)
+        win_chars = chars[i - 2:i + 3]
+        if ('V' in chars[i - 2:i + 3]) or ('S' in chars[i - 2:i + 3]):
+            for j in np.arange(win_chars.size):
+                if (win_chars[j] == 'V') or (win_chars[j] == 'S'):
+                    win_t[j:j + 2] = (win_t[j] + intervals[i - 2 + j]) / 2
+        diff_t = np.abs(win_t - np.roll(win_t, 1))
+        sum_diff_tf = np.sum(diff_t[1:-1])
+        out[i] = (sum_diff_tf * (1 + 100000 / mean_win_t ** 2)) ** 2 * 0.0019
+    return out
 
 
 def detect(arr, win):
@@ -358,15 +352,18 @@ def detect(arr, win):
         out[i] = np.max(arr[i - w:i + w])
     return out
 
+
 def sum3(arr):
     out = np.zeros(len(arr))
     for i in range(1, len(arr) - 1):
-        out[i] = np.sum(arr[i-1:i+2])
+        out[i] = np.sum(arr[i - 1:i + 2])
     return out
+
+
 def mean3(arr):
     out = np.zeros(len(arr))
     for i in range(2, len(arr) - 2):
-        win = arr[i-2:i+3]
+        win = arr[i - 2:i + 3]
         win = np.sort(win)
         out[i] = np.mean(win[1:-1])
     return out

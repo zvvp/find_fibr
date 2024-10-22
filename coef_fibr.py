@@ -20,18 +20,13 @@ p.addItem(vline)
 
 r_pos, intervals, chars, forms = parse_B_txt()
 
-# p.plot(intervals, pen="y")
 n = 111
-# intervals = medfilt(intervals, n)
-# intervals = mean3(intervals)
-# p.plot(intervals-100, pen="c")
-fintervals = medfilt(intervals, n)
+fintervals = medfilt(intervals, 51)
 
-coef_fibr, intervals1 = get_coef_fibr(intervals, chars)
+coef_fibr = get_coef_fibr(intervals, chars)
 coef_fibr[coef_fibr > 3000] = 3000
 fcoef_fibr = medfilt(coef_fibr, n)
 
-# p.plot(intervals1-200, pen="g")
 p.plot(fintervals, pen="m")
 p.plot(fcoef_fibr, pen="r")
 
