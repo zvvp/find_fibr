@@ -332,16 +332,21 @@ def get_coef_fibr(intervals, chars):
     len_in = len(intervals)
     out = np.zeros(len_in)
     for i in np.arange(2, len_in - 3):
-        win_t = intervals[i - 2:i + 3]
-        mean_win_t = np.mean(win_t)
+        win_t = intervals[i - 2:i + 3].copy()
         win_chars = chars[i - 2:i + 3]
         if ('V' in chars[i - 2:i + 3]) or ('S' in chars[i - 2:i + 3]):
             for j in np.arange(win_chars.size):
                 if (win_chars[j] == 'V') or (win_chars[j] == 'S'):
-                    win_t[j:j + 2] = (win_t[j] + intervals[i - 2 + j]) / 2
+                    if j == win_chars.size - 1:
+                        win_t[j] = (win_t[j] + intervals[i - 1 + j]) / 2
+                    else:
+                        win_t[j:j + 2] = (win_t[j] + intervals[i - 1 + j]) / 2
         diff_t = np.abs(win_t - np.roll(win_t, 1))
-        sum_diff_tf = np.sum(diff_t[1:-1])
-        out[i] = (sum_diff_tf * (1 + 100000 / mean_win_t ** 2)) ** 2 * 0.0019
+        diff_t = np.sort(diff_t)
+        sum_diff_tf = np.sum(diff_t[:3])
+        win_t = np.sort(win_t)
+        mean_win_t = np.mean(win_t[1:-1])
+        out[i] = (sum_diff_tf * (1 + 100000 / mean_win_t ** 2)) ** 2 * 0.0019 * 5
     return out
 
 

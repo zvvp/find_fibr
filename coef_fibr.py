@@ -21,16 +21,18 @@ p.addItem(vline)
 r_pos, intervals, chars, forms = parse_B_txt()
 
 n = 111
-fintervals = medfilt(intervals, 51)
-
+fintervals = medfilt(intervals, n)
+fintervals1 = medfilt(intervals, 3)
 coef_fibr = get_coef_fibr(intervals, chars)
-coef_fibr[coef_fibr > 3000] = 3000
+# coef_fibr[coef_fibr > 3000] = 3000
 fcoef_fibr = medfilt(coef_fibr, n)
 
 p.plot(fintervals, pen="m")
+# p.plot(intervals-fintervals, pen="b")
 p.plot(fcoef_fibr, pen="r")
+# p.plot(fintervals-fcoef_fibr, pen="y")
 
-# addr = r_pos[66710]
+# addr = r_pos[114036]
 # fname = QFileDialog.getOpenFileName()[0]
 # get_time_qrs(addr, fname)
 
