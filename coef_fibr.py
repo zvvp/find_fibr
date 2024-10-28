@@ -22,9 +22,8 @@ r_pos, intervals, chars, forms = parse_B_txt()
 
 n = 111
 fintervals = medfilt(intervals, n)
-fintervals1 = medfilt(intervals, 3)
 coef_fibr = get_coef_fibr(intervals, chars)
-# coef_fibr[coef_fibr > 3000] = 3000
+coef_fibr[coef_fibr > 3000] = 3000
 fcoef_fibr = medfilt(coef_fibr, n)
 
 p.plot(fintervals, pen="m")

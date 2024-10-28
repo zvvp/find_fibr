@@ -4,6 +4,7 @@ import numpy as np
 from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelextrema
 from scipy.stats import pearsonr
 import glob
+import os
 
 
 # from numba import njit
@@ -140,7 +141,7 @@ def get_periods(lines):
 
 
 # @njit
-def get_S(lead1, lead2, lead3):
+def get_S():
     start = 121
     stop = 122
     b, a = butter(2, 14, 'low', fs=250)  # 2, 14, 'low', fs=250
@@ -161,14 +162,14 @@ def get_S(lead1, lead2, lead3):
                 periods = get_periods(lines[i - 2:i + 3])
                 tf = np.array(periods)
                 t = np.array(periods[1:])
-                median_tf = np.median(tf)
-                diff_tf_median = np.abs(tf - median_tf)
-                diff_tf_median = np.sort(diff_tf_median)
-                diff_tf_median = diff_tf_median[:3]
-                sum_diff_tf_median = np.sum(diff_tf_median)
-                k_fibr = sum_diff_tf_median / (median_tf * 0.0014) ** 2
-                if ('V' in chars) or ('S' in chars):
-                    k_fibr = k_fibr * 0.5
+                # median_tf = np.median(tf)
+                # diff_tf_median = np.abs(tf - median_tf)
+                # diff_tf_median = np.sort(diff_tf_median)
+                # diff_tf_median = diff_tf_median[:3]
+                # sum_diff_tf_median = np.sum(diff_tf_median)
+                # k_fibr = sum_diff_tf_median / (median_tf * 0.0014) ** 2
+                # if ('V' in chars) or ('S' in chars):
+                    # k_fibr = k_fibr * 0.5
                 max_t = np.max(t)
                 min_t = np.min(t)
                 mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
@@ -372,3 +373,123 @@ def mean3(arr):
         win = np.sort(win)
         out[i] = np.mean(win[1:-1])
     return out
+
+def get_ranges_fibr(fintervals, fcoef_fibr, r_pos):
+    start = []
+    stop = []
+    temp = 0
+    w = 7500   # 2150
+    for i in range(1, len(fintervals)):
+        if (fcoef_fibr[i-1] <= fintervals[i-1]) and (fcoef_fibr[i] > fintervals[i]):
+            if len(start) == 0:
+                start.append(r_pos[i])
+                temp = r_pos[i]
+                continue
+            if (r_pos[i] - temp) >= w:
+                start.append(r_pos[i])
+                temp = r_pos[i]
+            elif len(stop) > 0:
+                stop.pop(-1)
+                if len(stop) > 0:
+                    temp = stop[-1]
+        elif (fcoef_fibr[i-1] >= fintervals[i-1]) and (fcoef_fibr[i] < fintervals[i]):
+            if len(stop) == 0:
+                stop.append(r_pos[i])
+                temp = r_pos[i]
+                continue
+            if (r_pos[i] - temp) >= w:
+                stop.append(r_pos[i])
+                temp = r_pos[i]
+            elif len(start) > 0:
+                start.pop(-1)
+                if len(start) > 0:
+                    temp = start[-1]
+
+    return start, stop
+
+def get_fname():
+    fname = ""
+    fname1 = ""
+    dir = "d:/Kp_01"
+    for file in os.listdir(dir):
+        if file.endswith(".ecg"):
+            fname = os.path.join(dir, file)
+            fname1 = fname[9:]
+            # print(fname1)
+    with open("C:/EcgVar/B1.txt", "r") as f:
+        lines = f.readlines()
+    fname3 = lines[2].strip()
+    fname2 = fname3[10:-1]
+    # print(fname2)
+    if fname1 == fname2:
+        return fname
+
+
+def wr_F_txt(start, stop, filename):
+    pass
+
+def get_start_time(fname):
+    with open(fname, "rb") as f:
+        f.seek(151)
+        dlmt = f.read(1)
+        if dlmt == b":":
+            f.seek(150)
+            start_h = int(f.read(1))
+            f.seek(152)
+            start_m = int(f.read(2))
+            f.seek(155)
+            start_s = int(f.read(2))
+        else:
+            f.seek(150)
+            start_h = int(f.read(2))
+            f.seek(153)
+            start_m = int(f.read(2))
+            f.seek(156)
+            start_s = int(f.read(2))
+    return start_h, start_m, start_s
+
+def get_time_qrs(addr, start_time):
+    s = addr * 4 // 1000
+    m = s // 60
+    s = s % 60
+    s = s + start_time[2]
+    if s >= 60:
+        s = s - 60
+        m = m + 1
+    h = m // 60
+    m = m % 60
+    m = m + start_time[1]
+    if m >= 60:
+        m = m - 60
+        h = h + 1
+    d = h // 24
+    h = h % 24
+    h = h + start_time[0]
+    if h >= 24:
+        h = h - 24
+        d = d + 1
+    # d = d + 1
+    h = 24 * d + h
+    # return f"{d:02d} день {h:02d}:{m:02d}:{s:02d}"
+    return h, m, s
+
+def get_diff_time(start, stop):
+    h1, m1, s1 = start
+    h2, m2, s2 = stop
+    if s1 <= s2:
+        diff_s = s2 - s1
+    else:
+        diff_s = s2 + 60 - s1
+        m2 -= 1
+    if m1 <= m2:
+        diff_m = m2 - m1
+    else:
+        diff_m = m2 + 60 - m1
+        h2 -= 1
+    if h1 <= h2:
+        diff_h = h2 - h1
+    else:
+        diff_h = h2 + 24 - h1
+
+    return diff_h, diff_m, diff_s
+
