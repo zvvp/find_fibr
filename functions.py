@@ -93,7 +93,7 @@ def get_intervals():
                 out.append(interval)
     return np.array(out)
 
-@time_fun
+# @time_fun
 def parse_B_txt():
     r_pos = []
     intervals = []
@@ -141,41 +141,125 @@ def get_periods(lines):
     period2 = int(lines[4].split(';')[1])
     return period_2, period_1, period, period1, period2
 
-@time_fun
+# @time_fun
+# def get_S():
+#     s = 0
+#     with open("C:/EcgVar/B.txt", "r") as f:
+#         lines = f.readlines()
+#     ref_t = np.array([200, 200, 100, 300, 200])  # 200, 160, 240, 200
+#     ref_t1 = np.array([100, 300, 100, 300, 200])
+#     ref_t2 = np.array([300, 200, 100, 300, 200])
+#     ref_t3 = np.array([300, 100, 300, 100, 300])
+#     ref_t4 = np.array([100, 300, 100, 300, 100])
+#     for i, line in enumerate(lines):
+#         if (i > 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
+#             form_1 = int(lines[i - 1].split(':')[1])
+#             form = int(lines[i].split(':')[1])
+#             if (';N' in line) and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+#                 periods = get_periods(lines[i - 2:i + 3])
+#                 tf = np.array(periods)
+#                 # t = np.array(periods[1:])
+#                 max_t = np.max(tf)
+#                 min_t = np.min(tf)
+#                 mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
+#                 if (min_t > 50) and (max_t < mean_t * 2) and ((max_t - min_t) > mean_t * 0.03):
+#                     coef_cor = get_coef_cor(ref_t, tf)
+#                     coef_cor1 = get_coef_cor(ref_t1, tf)
+#                     coef_cor2 = get_coef_cor(ref_t2, tf)
+#                     coef_cor3 = get_coef_cor(ref_t3, tf)
+#                     coef_cor4 = get_coef_cor(ref_t4, tf)
+#                     trs = 0.9787
+#                     if (coef_cor > trs) or (coef_cor1 > trs) or (coef_cor2 > trs) or (coef_cor4 > trs):
+#                         if (form == 0):
+#                             lines[i] = lines[i].replace(';N', ';A')
+#                             lines[i + 1] = lines[i + 1].replace(';N', ';A')
+#                         elif (form_1 == 0):
+#                             lines[i] = lines[i].replace(';N', ';A')
+#                             lines[i - 1] = lines[i - 1].replace(';N', ';A')
+#                         else:
+#                             lines[i] = lines[i].replace(';N', ';S')
+#                             s += 1
+#                     elif coef_cor3 > trs:
+#                         if (form == 0):
+#                             lines[i] = lines[i].replace(';N', ';A')
+#                             lines[i + 1] = lines[i + 1].replace(';N', ';A')
+#                         elif (form_1 == 0):
+#                             lines[i] = lines[i].replace(';N', ';A')
+#                             lines[i - 1] = lines[i - 1].replace(';N', ';A')
+#                         else:
+#                             lines[i-1] = lines[i-1].replace(';N', ';S')
+#                             s += 1
+#                             lines[i + 1] = lines[i + 1].replace(';N', ';S')
+#                             s += 1
+#     lines[6] = lines[6] + f"НЖ: {s}"
+#     with open("C:/EcgVar/B1.txt", "w") as f:
+#         for i, line in enumerate(lines):
+#             f.write(line)
+
+@njit
+def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
+    mean_x: float = np.mean(x)
+    mean_y: float = np.mean(y)
+    mean_xy: float = np.mean(x * y)
+    std_x: float = np.std(x)
+    std_y: float = np.std(y)
+    if std_x * std_y:
+        return (mean_xy - mean_x * mean_y) / (std_x * std_y)
+    else:
+        return 0
+
 def get_S():
+    try:
+        os.remove("C:/EcgVar/B1.txt")
+    except FileNotFoundError:
+        pass
+    try:
+        os.remove("C:/EcgVar/F.txt")
+    except FileNotFoundError:
+        pass
+    s = 0
     with open("C:/EcgVar/B.txt", "r") as f:
         lines = f.readlines()
-    ref_t = np.array([200, 100, 300, 200])  # 200, 160, 240, 200
-    ref_t1 = np.array([200, 100, 300, 100])
-    ref_t2 = np.array([300, 100, 300, 200])
     for i, line in enumerate(lines):
-        if (i > 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
-            stop = int(lines[i].split(';')[0])
-            form_1 = int(lines[i - 1].split(':')[1])
-            form = int(lines[i].split(':')[1])
-            if (';N' in line) and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+        if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
+            if (';N' in lines[i]) and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
                 periods = get_periods(lines[i - 2:i + 3])
                 tf = np.array(periods)
-                t = np.array(periods[1:])
-                max_t = np.max(t)
-                min_t = np.min(t)
+                ref_t = np.array([tf[1], tf[1] * 0.8, tf[1] * 1.2, tf[1]])
+                ref_t0 = np.array([tf[1], tf[1] * 0.65, tf[1] * 1.15, tf[1]])
+                ref_t1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 1.1, tf[1] * 0.65])
+                ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1], tf[1] * 1.6])
+                ref_tA = np.array([tf[1], tf[1] * 0.5, tf[1] * 0.5, tf[1]])
+                ref_tA1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 0.35, tf[1]])
+                ref_tA2 = np.array([tf[1], tf[1] * 0.35, tf[1] * 0.65, tf[1]])
+                # max_t = np.max(tf)
+                # min_t = np.min(tf)
                 mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
-                if (min_t > 50) and (max_t < mean_t * 2):
-                    coef_cor = get_coef_cor(ref_t, t)
-                    coef_cor1 = get_coef_cor(ref_t1, t)
-                    coef_cor2 = get_coef_cor(ref_t2, t)
-                    if (((coef_cor > 0.975) and (t[1] < t[0] * 0.97) and (
-                            t[0] * 1.05 > (t[1] + t[2]) / 2 > t[0] * 0.89))
-                            or ((';S' in lines[i - 2]) and (coef_cor2 > 0.9)) or (coef_cor1 > 0.985)):
-                        if (form == 0):
+                if (tf[2] > 50) and (tf[3] > 50) and (tf[2] < mean_t * 2) and (tf[3] < mean_t * 2):
+                    coef_cor = get_coef_cor(ref_t, tf[1:])
+                    coef_cor0 = get_coef_cor(ref_t0, tf[1:])
+                    coef_cor1 = get_coef_cor(ref_t1, tf[1:])
+                    coef_cor3 = get_coef_cor(ref_t3, tf[1:])
+                    coef_corA = get_coef_cor(ref_tA, tf[1:])
+                    coef_corA1 = get_coef_cor(ref_tA1, tf[1:])
+                    coef_corA2 = get_coef_cor(ref_tA2, tf[1:])
+                    trs = 0.975  # trs = 0.985
+                    if (coef_corA > 0.95) or (coef_corA1 > 0.95) or (coef_corA2 > 0.95):
+                        if (tf[3] + tf[2]) < tf[1] * 1.1:
                             lines[i] = lines[i].replace(';N', ';A')
                             lines[i + 1] = lines[i + 1].replace(';N', ';A')
-                        elif (form_1 == 0):
-                            lines[i] = lines[i].replace(';N', ';A')
-                            lines[i - 1] = lines[i - 1].replace(';N', ';A')
-                        else:
+                    elif (coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs):
+                        if (tf[3] - tf[2]) > tf[1] * 0.06:
                             lines[i] = lines[i].replace(';N', ';S')
-
+                            s += 1
+                    elif coef_cor3 > trs:
+                        if (tf[3] - tf[2]) > tf[1] * 0.06:
+                            lines[i + 1] = lines[i + 1].replace(';N', ';S')
+                            s += 1
+                else:
+                    lines[i] = lines[i].replace(';N', ';A')
+                    lines[i + 1] = lines[i + 1].replace(';N', ';A')
+    lines[6] = lines[6] + f"НЖ: {s}"
     with open("C:/EcgVar/B1.txt", "w") as f:
         for i, line in enumerate(lines):
             f.write(line)
@@ -243,39 +327,51 @@ def get_offset(stop, ch1, ch2, ch3):
     offset = 7 - np.argmax(sum_slice)
     return offset
 
-def get_number_of_peaks(fragment):
+def get_number_of_peaks1(fragment):
     mean_frg = np.mean(fragment)
-    local_max_idx = argrelextrema(fragment, np.greater)[0]
+    local_max_idx = []
+    for i in range(1, fragment.size - 1):
+        if fragment[i] > fragment[i - 1] and fragment[i] > fragment[i + 1]:
+            local_max_idx.append(i)
     local_max_values = fragment[local_max_idx]
 
     if len(local_max_values) > 0:
         max_peak = np.max(local_max_values)
     else:
-        max_peak = 0
-    if (max_peak - mean_frg) > 0.022:
+        max_peak = mean_frg
+    # if max_peak >
+    if (max_peak - mean_frg) * 1.5 > 0.0:  # 0.022
         return 1
     else:
         return 0
 
-def get_coef_fibr(intervals, chars):
+def get_number_of_peaks(fragment):
+    for i in range(3, fragment.size - 3):
+        if ((fragment[i] - fragment[i - 3]) > 0.002) and ((fragment[i] - fragment[i + 3]) > 0.002):
+            return 1
+    return 0
+
+def del_V_S(intervals, chars):
+    len_in = len(intervals)
+    out = intervals.copy()
+    for i in np.arange(3, len_in - 3):
+        if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]):
+            # out[i:i+2] = (np.sum(intervals[i-2:i+3]) - np.sum(intervals[i:i+2])) / 3
+            out[i:i + 2] = np.mean(intervals[i:i + 2]) #  np.mean(intervals[i-3:i+4])
+    return out
+
+def get_coef_fibr(intervals):
     len_in = len(intervals)
     out = np.zeros(len_in)
     for i in np.arange(2, len_in - 3):
-        win_t = intervals[i - 2:i + 3].copy()
-        win_chars = chars[i - 2:i + 3]
-        if ('V' in chars[i - 2:i + 3]) or ('S' in chars[i - 2:i + 3]):
-            for j in np.arange(win_chars.size):
-                if (win_chars[j] == 'V') or (win_chars[j] == 'S'):
-                    if j == win_chars.size - 1:
-                        win_t[j] = (win_t[j] + intervals[i - 1 + j]) / 2
-                    else:
-                        win_t[j:j + 2] = (win_t[j] + intervals[i - 1 + j]) / 2
+        win_t = intervals[i - 2:i + 3]
         diff_t = np.abs(win_t - np.roll(win_t, 1))
         diff_t = np.sort(diff_t)
-        sum_diff_tf = np.sum(diff_t[:3])
+        sum_diff_tf = np.sum(diff_t[1:-1])
         win_t = np.sort(win_t)
         mean_win_t = np.mean(win_t[1:-1])
-        out[i] = (sum_diff_tf * (1 + 100000 / mean_win_t ** 2)) ** 2 * 0.0019 * 5
+        out[i] = sum_diff_tf + 5000/mean_win_t #/ mean_win_t * 250
+    out = medfilt(out, 111)**2 / 80
     return out
 
 def detect(arr, win):
@@ -349,9 +445,6 @@ def get_fname():
     if fname1 == fname2:
         return fname
 
-def wr_F_txt(start, stop, filename):
-    pass
-
 def get_start_time(fname):
     with open(fname, "rb") as f:
         f.seek(151)
@@ -417,14 +510,8 @@ def get_diff_time(start, stop):
 
     return diff_h, diff_m, diff_s
 
-@njit
-def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
-    mean_x: float = np.mean(x)
-    mean_y: float = np.mean(y)
-    mean_xy: float = np.mean(x * y)
-    std_x: float = np.std(x)
-    std_y: float = np.std(y)
-    if std_x * std_y:
-        return (mean_xy - mean_x * mean_y) / (std_x * std_y)
-    else:
-        return 0
+def moving_average(data, window_size):
+    out = np.zeros(data.size)
+    for i in range(window_size // 2, len(data) - window_size // 2):
+        out[i] = np.mean(data[i - window_size // 2:i + window_size // 2])
+    return out

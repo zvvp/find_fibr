@@ -3,7 +3,7 @@ import sys
 import pyqtgraph as pg
 import numpy as np
 from scipy.signal import medfilt, savgol_filter, butter, filtfilt
-from functions import parse_B_txt, get_coef_fibr, get_r_pos, detect, sum3, mean3
+from functions import parse_B_txt, get_coef_fibr, del_V_S
 from get_time import get_time_qrs
 # from numba import njit, jit 
 
@@ -19,20 +19,28 @@ vline.setZValue(10)
 p.addItem(vline)
 
 r_pos, intervals, chars, forms = parse_B_txt()
-
+# p.plot(intervals, pen="g")
+# intervals = del_V_S(intervals, chars)
+# p.plot(intervals, pen="r")
 n = 111
+intervals = del_V_S(intervals, chars)
 fintervals = medfilt(intervals, n)
+# intervals = del_V_S(intervals, chars)
 coef_fibr = get_coef_fibr(intervals, chars)
-coef_fibr[coef_fibr > 3000] = 3000
+# intervals = del_V_S(intervals, chars)
+# p.plot(intervals, pen="r")
+# coef_fibr[coef_fibr > 3000] = 3000
 fcoef_fibr = medfilt(coef_fibr, n)
 
-p.plot(fintervals, pen="m")
-# p.plot(intervals-fintervals, pen="b")
-p.plot(fcoef_fibr, pen="r")
-# p.plot(fintervals-fcoef_fibr, pen="y")
+# p.plot(intervals, pen="m")
+# intervals = del_V_S(intervals, chars)
+# p.plot(intervals, pen="r")
+# intervals = medfilt(intervals, n)
+p.plot(fintervals, pen="c")
+p.plot(fcoef_fibr, pen="y")
 
-# addr = r_pos[114036]
-# fname = QFileDialog.getOpenFileName()[0]
-# get_time_qrs(addr, fname)
+addr = r_pos[114038]
+fname = QFileDialog.getOpenFileName()[0]
+get_time_qrs(addr, fname)
 
 sys.exit(app.exec())
