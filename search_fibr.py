@@ -28,7 +28,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars):
     # al = [1.0, -1.61277905,  0.67643727]
     bh = [0.9989957, - 0.9989957]
     ah = [1.0, - 0.9979914]
-    out = np.ones(len(r_pos))
+    out = np.zeros(len(r_pos))
     for i in range(1, len(r_pos) - 1):
         if chars[i] == 'N':
             len_pr = int(round(intervals[i] * 0.36))
@@ -52,12 +52,13 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars):
             elif sum_n == 2:
                 out[i] = 0.0  # 0.7
             elif sum_n == 1:
-                out[i] = 1000.0  # 1.7
+                out[i] = 100.0  # 1.7
             elif sum_n == 0:
-                out[i - 1:i + 2] = 1000.0  # 2.0
+                out[i] = 100.0
+                # out[i - 1:i + 2] = 1000.0  # 2.0
         else:
             out[i] = 0.0   # 0.3
-    win = int(np.mean(intervals) * 2)
+    win = int(np.mean(intervals) * 1.0)
     out = moving_average(out, win)
     return out
 
@@ -82,16 +83,24 @@ def main():
 
     get_S()
     r_pos, intervals, chars, forms = parse_B_txt()
-    pzub = get_P(lead1, lead2, lead3, intervals, r_pos, chars)
+    pzub = get_P(lead1, lead2, lead3, intervals, r_pos, chars) * 0.3
     fintervals = del_V_S(intervals, chars)
     coef_fibr = get_coef_fibr(fintervals)
-    p_coef_fibr = coef_fibr + pzub
-
+    # fintervals = moving_average(fintervals, 15)
+    # p_coef_fibr = coef_fibr + pzub
+    # p_coef_fibr = moving_average(p_coef_fibr, 179) * 2.0
+    # p_coef_fibr = moving_average(p_coef_fibr, 79) * 1.9
     n = 111
     fintervals = medfilt(fintervals, n)
+    coef_fibr = medfilt(coef_fibr, n)
 
-    p.plot(fintervals, pen="g")
-    p.plot(p_coef_fibr, pen='y')
+    # p.plot(fintervals / 100, pen="g")
+    fintervals = moving_average(fintervals, n)
+    p.plot((fintervals - np.mean(fintervals)) * 0.0065 + 0.98, pen="g")
+    p.plot(pzub, pen='y')
+    coef_fibr = moving_average(coef_fibr, n)
+    p.plot(coef_fibr + pzub, pen='r')
+    # p.plot(coef_fibr, pen='r')
     # bl, al = butter(2, 31, 'low', fs=250)
     # print(f"bl = {bl}")
     # print(f"al = {al}")

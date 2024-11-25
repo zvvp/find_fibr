@@ -356,8 +356,7 @@ def del_V_S(intervals, chars):
     out = intervals.copy()
     for i in np.arange(3, len_in - 3):
         if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]):
-            # out[i:i+2] = (np.sum(intervals[i-2:i+3]) - np.sum(intervals[i:i+2])) / 3
-            out[i:i + 2] = np.mean(intervals[i:i + 2]) #  np.mean(intervals[i-3:i+4])
+            out[i:i + 2] = np.mean(intervals[i:i + 2])
     return out
 
 def get_coef_fibr(intervals):
@@ -366,12 +365,15 @@ def get_coef_fibr(intervals):
     for i in np.arange(2, len_in - 3):
         win_t = intervals[i - 2:i + 3]
         diff_t = np.abs(win_t - np.roll(win_t, 1))
+        diff_t = diff_t[1:]
+        # diff_t[diff_t <= 10] = 10
         diff_t = np.sort(diff_t)
-        sum_diff_tf = np.sum(diff_t[1:-1])
+        sum_diff_tf = np.sum(diff_t[:-1])
         win_t = np.sort(win_t)
         mean_win_t = np.mean(win_t[1:-1])
-        out[i] = sum_diff_tf + 5000/mean_win_t #/ mean_win_t * 250
-    out = medfilt(out, 111)**2 / 80
+        out[i] = sum_diff_tf**2 / mean_win_t * 0.061
+        # out[i] = sum_diff_tf + 5000/mean_win_t# * (sum_diff_tf + mean_win_t) / mean_win_t
+    # out = medfilt(out, 111)**2 / 80
     return out
 
 def detect(arr, win):
