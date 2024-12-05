@@ -3,7 +3,7 @@ import sys
 import pyqtgraph as pg
 import numpy as np
 from scipy.signal import filtfilt, medfilt, butter, savgol_filter
-from functions import get_S, parse_B_txt, get_number_of_peaks, get_coef_fibr, del_V_S, moving_average
+from functions import get_S, parse_B_txt, get_number_of_peaks, get_coef_fibr, del_V_S, moving_average, correct_fibr
 from time import time
 
 
@@ -22,10 +22,10 @@ def time_fun(func):
 
 @time_fun
 def get_P(lead1, lead2, lead3, intervals, r_pos, chars):
-    bl = [0.09635722, 0.19271443, 0.09635722]
-    al = [1.0, -0.95071164, 0.33614051]
-    # bl = [0.01591456, 0.03182911, 0.01591456]
-    # al = [1.0, -1.61277905,  0.67643727]
+    # bl = [0.09635722, 0.19271443, 0.09635722]
+    # al = [1.0, -0.95071164, 0.33614051]
+    bl = [0.01591456, 0.03182911, 0.01591456]
+    al = [1.0, -1.61277905,  0.67643727]
     bh = [0.9989957, - 0.9989957]
     ah = [1.0, - 0.9979914]
     out = np.zeros(len(r_pos))
@@ -50,11 +50,11 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars):
             if sum_n == 3:
                 out[i] = 0.0  #  out[i] = 0.3
             elif sum_n == 2:
-                out[i] = 0.0  # 0.7
+                out[i] = 50.0  # 0.7
             elif sum_n == 1:
-                out[i] = 100.0  # 1.7
+                out[i] = 250.0  # 1.7
             elif sum_n == 0:
-                out[i] = 100.0
+                out[i] = 300.0
                 # out[i - 1:i + 2] = 1000.0  # 2.0
         else:
             out[i] = 0.0   # 0.3
@@ -65,12 +65,12 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars):
 
 p = pg.plot()
 p.showGrid(x=True, y=True)
-vline = pg.InfiniteLine(label='{value:0.0F}', movable=True,
-                        labelOpts={'position': 0.1, 'color': (250, 250, 200), 'fill': (0, 0, 0), 'movable': True})
-vline.setPen(color='c', width=1)
-vline.setValue(2000)
-vline.setZValue(10)
-p.addItem(vline)
+# vline = pg.InfiniteLine(label='{value:0.0F}', movable=True,
+#                         labelOpts={'position': 0.1, 'color': (250, 250, 200), 'fill': (0, 0, 0), 'movable': True})
+# vline.setPen(color='c', width=1)
+# vline.setValue(2000)
+# vline.setZValue(10)
+# p.addItem(vline)
 
 # p1 = pg.plot()
 # p1.showGrid(x=True, y=True)
@@ -83,24 +83,30 @@ def main():
 
     get_S()
     r_pos, intervals, chars, forms = parse_B_txt()
-    pzub = get_P(lead1, lead2, lead3, intervals, r_pos, chars) * 0.3
+    pzub = get_P(lead1, lead2, lead3, intervals, r_pos, chars)
     fintervals = del_V_S(intervals, chars)
     coef_fibr = get_coef_fibr(fintervals)
-    # fintervals = moving_average(fintervals, 15)
-    # p_coef_fibr = coef_fibr + pzub
-    # p_coef_fibr = moving_average(p_coef_fibr, 179) * 2.0
-    # p_coef_fibr = moving_average(p_coef_fibr, 79) * 1.9
     n = 111
     fintervals = medfilt(fintervals, n)
-    coef_fibr = medfilt(coef_fibr, n)
-
-    # p.plot(fintervals / 100, pen="g")
     fintervals = moving_average(fintervals, n)
-    p.plot((fintervals - np.mean(fintervals)) * 0.0065 + 0.98, pen="g")
-    p.plot(pzub, pen='y')
+    mean_intervals = np.mean(fintervals)
+    fintervals = (fintervals - mean_intervals) * 0.8 + mean_intervals
+    p.plot(fintervals, pen="g")
+    # p.plot(pzub, pen='y')
+    coef_fibr = medfilt(coef_fibr, n)
     coef_fibr = moving_average(coef_fibr, n)
-    p.plot(coef_fibr + pzub, pen='r')
+    p_coef_fibr = coef_fibr + pzub
+    mean_p_fibr = np.mean(p_coef_fibr)
     # p.plot(coef_fibr, pen='r')
+    p_coef_fibr = (p_coef_fibr - mean_p_fibr) * 0.7
+    if mean_p_fibr > mean_intervals:
+        p_coef_fibr += mean_p_fibr * 1.05
+    elif mean_p_fibr < mean_intervals:
+        p_coef_fibr += mean_p_fibr * 0.94
+    p.plot(p_coef_fibr, pen='c')
+    # p.plot(p_coef_fibr * 0.9 + coef_fibr * pzub * 0.005, pen='m')
+    # p_coef_fibr = (p_coef_fibr - np.mean(p_coef_fibr)) * 3.0 + np.mean(p_coef_fibr) * 1.5
+    # p.plot(p_coef_fibr, pen='c')
     # bl, al = butter(2, 31, 'low', fs=250)
     # print(f"bl = {bl}")
     # print(f"al = {al}")

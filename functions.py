@@ -114,8 +114,8 @@ def parse_B_txt():
         intervals = np.array(intervals)
         chars = np.array(chars)
         forms = np.array(forms)
-        intervals[intervals < 50] = 50
-        intervals[intervals > 500] = 500
+        intervals[intervals < 50] = np.mean(intervals)
+        intervals[intervals > 500] = np.mean(intervals)
 
     return r_pos, intervals, chars, forms
 
@@ -330,24 +330,33 @@ def get_offset(stop, ch1, ch2, ch3):
 def get_number_of_peaks1(fragment):
     mean_frg = np.mean(fragment)
     local_max_idx = []
-    for i in range(1, fragment.size - 1):
-        if fragment[i] > fragment[i - 1] and fragment[i] > fragment[i + 1]:
+    for i in range(3, fragment.size - 3):
+        if ((fragment[i] - fragment[i - 3]) > 0.002) and ((fragment[i] - fragment[i + 3]) > 0.002):
+        # if fragment[i] > fragment[i - 1] and fragment[i] > fragment[i + 1]:
             local_max_idx.append(i)
     local_max_values = fragment[local_max_idx]
-
-    if len(local_max_values) > 0:
-        max_peak = np.max(local_max_values)
-    else:
-        max_peak = mean_frg
-    # if max_peak >
-    if (max_peak - mean_frg) * 1.5 > 0.0:  # 0.022
+    if len(local_max_values) == 1:
+        return 1
+    elif len(local_max_values) == 2:
         return 1
     else:
         return 0
 
+    # if len(local_max_values) == 1:  # if len(local_max_values) > 0:
+    #     max_peak = np.max(local_max_values)
+    # elif len(local_max_values) == 2:
+    #     max_peak = np.max(local_max_values)
+    # else:
+    #     max_peak = mean_frg
+    # # if max_peak >
+    # if (max_peak - mean_frg) * 0.2 > 0.0:  # 0.022
+    #     return 1
+    # else:
+    #     return 0
+
 def get_number_of_peaks(fragment):
     for i in range(3, fragment.size - 3):
-        if ((fragment[i] - fragment[i - 3]) > 0.002) and ((fragment[i] - fragment[i + 3]) > 0.002):
+        if ((fragment[i] - fragment[i - 3]) > 0.003) and ((fragment[i] - fragment[i + 3]) > 0.003): # 0.002
             return 1
     return 0
 
@@ -362,19 +371,20 @@ def del_V_S(intervals, chars):
 def get_coef_fibr(intervals):
     len_in = len(intervals)
     out = np.zeros(len_in)
-    for i in np.arange(2, len_in - 3):
-        win_t = intervals[i - 2:i + 3]
+    for i in np.arange(3, len_in - 4):
+        win_t = intervals[i - 3:i + 4]
+        win_t = np.sort(win_t)[1:-1]
+        mean_win_t = np.mean(win_t[1:-1])
         diff_t = np.abs(win_t - np.roll(win_t, 1))
         diff_t = diff_t[1:]
-        # diff_t[diff_t <= 10] = 10
         diff_t = np.sort(diff_t)
-        sum_diff_tf = np.sum(diff_t[:-1])
-        win_t = np.sort(win_t)
-        mean_win_t = np.mean(win_t[1:-1])
-        out[i] = sum_diff_tf**2 / mean_win_t * 0.061
-        # out[i] = sum_diff_tf + 5000/mean_win_t# * (sum_diff_tf + mean_win_t) / mean_win_t
-    # out = medfilt(out, 111)**2 / 80
+        sum_diff_tf = np.sum((diff_t[:-1] * 10)**2)
+        # win_t = np.sort(win_t)
+        # out[i] = sum_diff_tf + 5000/mean_win_t
+        out[i] = sum_diff_tf / mean_win_t
+    # mean_out = np.mean(out)
     return out
+    # return (out - mean_out) * 0.8 + mean_out * 1.6
 
 def detect(arr, win):
     out = np.zeros(len(arr))
@@ -516,4 +526,17 @@ def moving_average(data, window_size):
     out = np.zeros(data.size)
     for i in range(window_size // 2, len(data) - window_size // 2):
         out[i] = np.mean(data[i - window_size // 2:i + window_size // 2])
+    return out
+
+def correct_fibr(p_coef_fibr, fintervals, window_size):
+    len_in = len(p_coef_fibr)
+    out = p_coef_fibr.copy()
+    win = window_size // 2
+    for i in range(win, len_in - win):
+        mean_fibr = np.mean(p_coef_fibr[i - win:i + win])
+        mean_win = np.mean(fintervals[i - win:i + win])
+        if mean_fibr > mean_win:
+            out[i] = (p_coef_fibr[i] - mean_fibr) * 0.8 + mean_fibr * 1.1
+        else:
+            out[i] = (p_coef_fibr[i] - mean_fibr) * 0.8 + mean_fibr * 0.9
     return out

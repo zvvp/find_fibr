@@ -12,12 +12,13 @@ p.showGrid(x=True, y=True)
 # p1 = pg.plot()
 # p1.showGrid(x=True, y=True)
 
-x = np.arange(0, 100)
-x = x
-# p.plot(x, x**2, pen='g')
+x = np.arange(0, 100) *3
+y = x**2 / 100
+p.plot(x, y, pen='g')
 
-x1 = np.arange(50, 350)
-x1 = x1
-p.plot(x1, (x1 * 1)**0.5, pen='y')
+# x1 = np.arange(0, 300)
+y1 = 1000 / x**0.5
+p.plot(x, y1, pen='y')
+p.plot(x, y*y1/10, pen='r')
 
 sys.exit(app.exec())
