@@ -1,8 +1,6 @@
 from PyQt6.QtWidgets import QFileDialog
-import pyqtgraph as pg
 import numpy as np
-from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelextrema
-from scipy.stats import pearsonr
+from scipy.signal import medfilt, savgol_filter, butter, filtfilt
 import glob
 import os
 from numba import njit
@@ -356,7 +354,7 @@ def get_number_of_peaks1(fragment):
 
 def get_number_of_peaks(fragment):
     for i in range(3, fragment.size - 3):
-        if ((fragment[i] - fragment[i - 3]) > 0.003) and ((fragment[i] - fragment[i + 3]) > 0.003): # 0.002
+        if ((fragment[i] - fragment[i - 3]) > 0.003) and ((fragment[i] - fragment[i + 3]) > 0.003):
             return 1
     return 0
 
@@ -365,26 +363,31 @@ def del_V_S(intervals, chars):
     out = intervals.copy()
     for i in np.arange(3, len_in - 3):
         if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]):
-            out[i:i + 2] = np.mean(intervals[i:i + 2])
+            mean_interval = np.mean([intervals[i - 1], intervals[i + 2]])
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.04
     return out
 
 def get_coef_fibr(intervals):
     len_in = len(intervals)
+    mean_interval = np.mean([intervals])
     out = np.zeros(len_in)
-    for i in np.arange(3, len_in - 4):
-        win_t = intervals[i - 3:i + 4]
-        win_t = np.sort(win_t)[1:-1]
-        mean_win_t = np.mean(win_t[1:-1])
+    for i in np.arange(7, len_in - 8):
+        win_t = intervals[i - 7:i + 8]
+        # win_t = np.sort(win_t)[2:-3]
+        # mean_win_t = np.mean(win_t)
+        mean_win_t = np.median(win_t)
         diff_t = np.abs(win_t - np.roll(win_t, 1))
-        diff_t = diff_t[1:]
-        diff_t = np.sort(diff_t)
-        sum_diff_tf = np.sum((diff_t[:-1] * 10)**2)
+        # diff_t = diff_t[1:]
+        # diff_t = np.sort(diff_t)
+        # sum_diff_tf = np.sum(diff_t[:-1])
+        sum_diff_tf = np.median(diff_t)
+        # sum_diff_tf = np.sum(diff_t)
         # win_t = np.sort(win_t)
         # out[i] = sum_diff_tf + 5000/mean_win_t
-        out[i] = sum_diff_tf / mean_win_t
+        out[i] = sum_diff_tf / mean_win_t / mean_interval * 500000
     # mean_out = np.mean(out)
     return out
-    # return (out - mean_out) * 0.8 + mean_out * 1.6
+
 
 def detect(arr, win):
     out = np.zeros(len(arr))
