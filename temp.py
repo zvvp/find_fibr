@@ -3,7 +3,7 @@ import sys
 import pyqtgraph as pg
 import numpy as np
 from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelmax
-from functions import parse_B1_txt, get_S, moving_average, del_V_S, truncate_win
+from functions import parse_B1_txt, get_S, moving_average, del_V_S, truncate_win, interp_pr
 from time import time
 
 app = QApplication(sys.argv)
@@ -48,15 +48,16 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # pos_p1 = 0
     # pos_p2 = 0
     # pos_p3 = 0
-    # intervals_PR1 = np.array([])
-    # intervals_PR2 = np.array([])
-    # intervals_PR3 = np.array([])
-    intervals_PR1 = np.zeros(r_pos.size)
-    intervals_PR2 = np.zeros(r_pos.size)
-    intervals_PR3 = np.zeros(r_pos.size)
-    pr1 = 0
-    pr2 = 0
-    pr3 = 0
+    presence_PR1 = np.zeros(r_pos.size, dtype=int)
+    presence_PR2 = np.zeros(r_pos.size, dtype=int)
+    presence_PR3 = np.zeros(r_pos.size, dtype=int)
+    intervals_PR1 = np.array([], dtype=int)
+    intervals_PR2 = np.array([], dtype=int)
+    intervals_PR3 = np.array([], dtype=int)
+    inds_PR1 = np.array([], dtype=int)
+    inds_PR2 = np.array([], dtype=int)
+    inds_PR3 = np.array([], dtype=int)
+
     for i in inds_min:
         if (chars[i] == 'N') and (chars[i - 1] == 'N'):# and (chars[i + 1] == 'N'):
             len_pr = int(intervals[i] * 0.2 + 20)
@@ -77,27 +78,38 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
             pos_loc_max_frag1 = argrelmax(fragment1)[0]
             pos_loc_max_frag2 = argrelmax(fragment2)[0]
             pos_loc_max_frag3 = argrelmax(fragment3)[0]
-            if (pos_loc_max_frag1.size == 1) and ((fragment1[pos_loc_max_frag1] - np.min(fragment1)) > 0.1):
-                intervals_PR1[i] = len_pr - pos_loc_max_frag1[0]
-                # intervals_PR1 = np.append(intervals_PR1, len_pr - pos_loc_max_frag1[0])
-            if (pos_loc_max_frag2.size == 1) and ((fragment2[pos_loc_max_frag2] - np.min(fragment2)) > 0.1):
-                intervals_PR2[i] = len_pr - pos_loc_max_frag2[0]
-                # intervals_PR2 = np.append(intervals_PR2, len_pr - pos_loc_max_frag2[0])
-            if (pos_loc_max_frag3.size == 1) and ((fragment3[pos_loc_max_frag3] - np.min(fragment3)) > 0.1):
-                intervals_PR3[i] = len_pr - pos_loc_max_frag3[0]
-                # intervals_PR3 = np.append(intervals_PR3, len_pr - pos_loc_max_frag3[0])
+            if (pos_loc_max_frag1.size == 1) and ((fragment1[pos_loc_max_frag1] - np.min(fragment1)) > 0.01):
+                intervals_PR1 = np.append(intervals_PR1, len_pr - pos_loc_max_frag1[0])
+                inds_PR1 = np.append(inds_PR1, i)
+            if (pos_loc_max_frag2.size == 1) and ((fragment2[pos_loc_max_frag2] - np.min(fragment2)) > 0.01):
+                intervals_PR2 = np.append(intervals_PR2, len_pr - pos_loc_max_frag2[0])
+                inds_PR2 = np.append(inds_PR2, i)
+            if (pos_loc_max_frag3.size == 1) and ((fragment3[pos_loc_max_frag3] - np.min(fragment3)) > 0.01):
+                intervals_PR3 = np.append(intervals_PR3, len_pr - pos_loc_max_frag3[0])
+                inds_PR3 = np.append(inds_PR3, i)
 
-    if intervals_PR1.size > 0:
-        pr1 = int(np.mean(intervals_PR1[intervals_PR1 > 0]))
-    if intervals_PR2.size > 0:
-        pr2 = int(np.mean(intervals_PR2[intervals_PR2 > 0]))
-    if intervals_PR3.size > 0:
-        pr3 = int(np.mean(intervals_PR3[intervals_PR3 > 0]))
-    p03.plot(intervals_PR1, pen='g')
-    p03.plot(intervals_PR2, pen='y')
-    p03.plot(intervals_PR3, pen='c')
+    if intervals_PR1.size > 21:
+        intervals_PR1 = medfilt(intervals_PR1, 21)
+    if intervals_PR2.size > 21:
+        intervals_PR2 = medfilt(intervals_PR2, 21)
+    if intervals_PR3.size > 21:
+        intervals_PR3 = medfilt(intervals_PR3, 21)
 
-    return pr1, pr2, pr3
+    presence_PR1[inds_PR1] = intervals_PR1
+    presence_PR2[inds_PR2] = intervals_PR2
+    presence_PR3[inds_PR3] = intervals_PR3
+    interp_pr(presence_PR1)
+    interp_pr(presence_PR2)
+    interp_pr(presence_PR3)
+
+    p03.plot(presence_PR1, pen='g')
+    p03.plot(presence_PR2, pen='y')
+    p03.plot(presence_PR3, pen='c')
+    # print(inds_PR1[:10])
+    # print(inds_PR2[:10])
+    # print(inds_PR3[:10])
+
+    return presence_PR1, presence_PR2, presence_PR3
 
 
 @time_fun
@@ -116,23 +128,23 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3):
     mean_interval = np.mean(intervals)
     for i in range(1, len(r_pos)):
         if chars[i] == 'N':
-            fragment_l1 = lead1[r_pos[i] - pr1 - 10:r_pos[i] - pr1 + 11]    # -14 +15
+            fragment_l1 = lead1[r_pos[i] - pr1[i] - 10:r_pos[i] - pr1[i] + 11]    # -14 +15
             fragment_l1 = filtfilt(bl, al, fragment_l1)
             ind_max1 = argrelmax(fragment_l1)[0]
-            if (ind_max1.size == 1) and ((fragment_l1[ind_max1] - np.min(fragment_l1)) > 0.02):
+            if (ind_max1.size == 1) and ((fragment_l1[ind_max1] - np.min(fragment_l1)) > 0.01):
                 p1[i] = 1
-            fragment_l2 = lead2[r_pos[i] - pr2 - 10:r_pos[i] - pr2 + 11]
+            fragment_l2 = lead2[r_pos[i] - pr2[i] - 10:r_pos[i] - pr2[i] + 11]
             fragment_l2 = filtfilt(bl, al, fragment_l2)
             ind_max2 = argrelmax(fragment_l2)[0]
-            if (ind_max2.size == 1) and ((fragment_l2[ind_max2] - np.min(fragment_l2)) > 0.02):
+            if (ind_max2.size == 1) and ((fragment_l2[ind_max2] - np.min(fragment_l2)) > 0.01):
                 p2[i] = 1
-            fragment_l3 = lead3[r_pos[i] - pr3 - 10:r_pos[i] - pr3 + 11]
+            fragment_l3 = lead3[r_pos[i] - pr3[i] - 10:r_pos[i] - pr3[i] + 11]
             fragment_l3 = filtfilt(bl, al, fragment_l3)
             ind_max3 = argrelmax(fragment_l3)[0]
-            if (ind_max3.size == 1) and ((fragment_l3[ind_max3] - np.min(fragment_l3)) > 0.02):
+            if (ind_max3.size == 1) and ((fragment_l3[ind_max3] - np.min(fragment_l3)) > 0.01):
                 p3[i] = 1
 
-            if i == 36400:
+            if i == 4523:
                 p01.plot(fragment_l1, pen='g')
                 p01.plot(fragment_l2, pen='y')
                 p01.plot(fragment_l3, pen='c')
@@ -172,7 +184,7 @@ def main():
 
     inds_min = get_inds_min_diff(intervals)
     pos_p1, pos_p2, pos_p3 = get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min)
-    print(pos_p1, pos_p2, pos_p3)
+
 
     coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, pos_p1, pos_p2, pos_p3)
 

@@ -695,3 +695,10 @@ def get_n_threshold(ch):
 def get_p_threshold(ch):
     mean_ch = np.mean(ch)
     return np.mean(ch[ch > mean_ch])
+
+def interp_pr(ch):
+    len_ch = ch.size
+    for i in np.arange(1, len_ch):
+        if ch[i] == 0:
+            ch[i] = ch[i - 1]
+
