@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QFileDialog
 import numpy as np
-from scipy.signal import medfilt, savgol_filter, butter, filtfilt
+from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelmax, argrelmin
 import glob
 import os
 from numba import njit
@@ -91,8 +91,33 @@ def get_intervals():
                 out.append(interval)
     return np.array(out)
 
-# @time_fun
 def parse_B_txt():
+    r_pos = []
+    intervals = []
+    chars = []
+    forms = []
+    with open("C:/EcgVar/B.txt", "r") as f:
+        for line in f:
+            if ';' in line:
+                temp = int(line.split(';')[0])
+                r_pos.append(temp)
+                temp = int(line.split(';')[1])
+                intervals.append(temp)
+                temp = line.split(';')[2][0]
+                chars.append(temp)
+                temp = int(line.split(':')[1])
+                forms.append(temp)
+        r_pos = np.array(r_pos)
+        intervals = np.array(intervals)
+        chars = np.array(chars)
+        forms = np.array(forms)
+        # intervals[intervals < 50] = np.mean(intervals)
+        # intervals[intervals > 500] = np.mean(intervals)
+
+    return r_pos, intervals, chars, forms
+
+# @time_fun
+def parse_B1_txt():
     r_pos = []
     intervals = []
     chars = []
@@ -112,8 +137,8 @@ def parse_B_txt():
         intervals = np.array(intervals)
         chars = np.array(chars)
         forms = np.array(forms)
-        intervals[intervals < 50] = np.mean(intervals)
-        intervals[intervals > 500] = np.mean(intervals)
+        # intervals[intervals < 50] = np.mean(intervals)
+        # intervals[intervals > 500] = np.mean(intervals)
 
     return r_pos, intervals, chars, forms
 
@@ -230,8 +255,6 @@ def get_S():
                 ref_tA = np.array([tf[1], tf[1] * 0.5, tf[1] * 0.5, tf[1]])
                 ref_tA1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 0.35, tf[1]])
                 ref_tA2 = np.array([tf[1], tf[1] * 0.35, tf[1] * 0.65, tf[1]])
-                # max_t = np.max(tf)
-                # min_t = np.min(tf)
                 mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
                 if (tf[2] > 50) and (tf[3] > 50) and (tf[2] < mean_t * 2) and (tf[3] < mean_t * 2):
                     coef_cor = get_coef_cor(ref_t, tf[1:])
@@ -325,67 +348,147 @@ def get_offset(stop, ch1, ch2, ch3):
     offset = 7 - np.argmax(sum_slice)
     return offset
 
-def get_number_of_peaks1(fragment):
-    mean_frg = np.mean(fragment)
-    local_max_idx = []
-    for i in range(3, fragment.size - 3):
-        if ((fragment[i] - fragment[i - 3]) > 0.002) and ((fragment[i] - fragment[i + 3]) > 0.002):
-        # if fragment[i] > fragment[i - 1] and fragment[i] > fragment[i + 1]:
-            local_max_idx.append(i)
-    local_max_values = fragment[local_max_idx]
-    if len(local_max_values) == 1:
-        return 1
-    elif len(local_max_values) == 2:
-        return 1
-    else:
+def get_max_p(fragment):
+    diff_loc = get_diff_loc(fragment)
+    if (diff_loc.size == 0) or (diff_loc.size > 2):
         return 0
+    else:
+        return np.max(diff_loc)
+        # return 0.1
 
-    # if len(local_max_values) == 1:  # if len(local_max_values) > 0:
-    #     max_peak = np.max(local_max_values)
-    # elif len(local_max_values) == 2:
-    #     max_peak = np.max(local_max_values)
-    # else:
-    #     max_peak = mean_frg
-    # # if max_peak >
-    # if (max_peak - mean_frg) * 0.2 > 0.0:  # 0.022
+def get_number_of_peaks1(fragment):
+    diff_loc = get_diff_loc(fragment)
+    if (diff_loc.size == 0) or (diff_loc.size > 1):
+        return 0
+    else:
+        return 1
+    # max_diff = np.max(diff_loc)
+    # if max_diff > 0.001:
     #     return 1
     # else:
     #     return 0
 
-def get_number_of_peaks(fragment):
-    for i in range(3, fragment.size - 3):
-        if ((fragment[i] - fragment[i - 3]) > 0.003) and ((fragment[i] - fragment[i + 3]) > 0.003):
-            return 1
+def get_diff_loc(fragment):
+    num_max = argrelmax(fragment)[0]
+    if num_max.size == 0:
+        return np.array([])
+    else:
+        num_min = argrelmin(fragment)[0]
+        ind_max_min = np.sort(np.concatenate((num_max, num_min)))
+        loc_extrem = fragment[ind_max_min]
+        diff_loc = (loc_extrem - np.roll(loc_extrem, 1))[1:]
+        diff_loc = diff_loc[diff_loc > 0.001]
+        if diff_loc.size == 0:
+            return np.array([])
+        else:
+            return diff_loc
+
+def get_number_of_peaks(fragment, n):
+    gnp = get_number_of_peaks
+    if not hasattr(gnp, "counter1"):
+        gnp.counter1 = 0
+    if not hasattr(gnp, "sum1"):
+        gnp.sum1 = 0
+    if not hasattr(gnp, "mean1"):
+        gnp.mean1 = 0
+    if not hasattr(gnp, "counter2"):
+        gnp.counter2 = 0
+    if not hasattr(gnp, "sum2"):
+        gnp.sum2 = 0
+    if not hasattr(gnp, "mean2"):
+        gnp.mean2 = 0
+    if not hasattr(gnp, "counter3"):
+        gnp.counter3 = 0
+    if not hasattr(gnp, "sum3"):
+        gnp.sum3 = 0
+    if not hasattr(gnp, "mean3"):
+        gnp.mean3 = 0
+    k1 = 10.0
+    k2 = 0.01
+    # k3 = 0.005
+    diff_loc = get_diff_loc(fragment)
+    if (diff_loc.size == 0) or (diff_loc.size > 2):
+        return 0
+    max_diff = np.max(diff_loc)
+    if max_diff > 0.001:
+        if n == 1:
+            gnp.counter1 += 1
+            gnp.sum1 += max_diff
+            gnp.mean1 = gnp.sum1 / gnp.counter1
+            if (gnp.mean1 * k1 > max_diff > gnp.mean1 * k2):
+                return 1
+        if n == 2:
+            gnp.counter2 += 1
+            gnp.sum2 += max_diff
+            gnp.mean2 = gnp.sum2 / gnp.counter2
+            if (gnp.mean2 * k1 > max_diff > gnp.mean2 * k2):
+                return 1
+        if n == 3:
+            gnp.counter3 += 1
+            gnp.sum3 += max_diff
+            gnp.mean3 = gnp.sum3 / gnp.counter3
+            if (gnp.mean3 * k1 > max_diff > gnp.mean3 * k2):
+                return 1
     return 0
+
+    #     if n == 1:
+    #         gnp.counter1 += 2
+    #         gnp.sum1 += (front_peak + back_peak)
+    #         gnp.mean1 = gnp.sum1 / gnp.counter1
+    #         if (front_peak > gnp.mean1 * k2) and (back_peak > gnp.mean1 * k2):
+    #         # if (gnp.mean1 * k1 > front_peak > gnp.mean1 * k2) and (gnp.mean1 * k1 > back_peak > gnp.mean1 * k2):
+    #             return 1
+    #     elif n == 2:
+    #         gnp.counter2 += 2
+    #         gnp.sum2 += (front_peak + back_peak)
+    #         gnp.mean2 = gnp.sum2 / gnp.counter2
+    #         if (front_peak > gnp.mean2 * k2) and (back_peak > gnp.mean2 * k2):
+    #         # if (gnp.mean2 * k1 > front_peak > gnp.mean2 * k2) and (gnp.mean2 * k1 > back_peak > gnp.mean2 * k2):
+    #             return 1
+    #     elif n == 3:
+    #         gnp.counter3 += 2
+    #         gnp.sum3 += (front_peak + back_peak)
+    #         gnp.mean3 = gnp.sum3 / gnp.counter3
+    #         if (front_peak > gnp.mean3 * k2) and (back_peak > gnp.mean3 * k2):
+    #         # if (gnp.mean3 * k1 > front_peak > gnp.mean3 * k2) and (gnp.mean3 * k1 > back_peak > gnp.mean3 * k2):
+    #             return 1
+    # return 0
 
 def del_V_S(intervals, chars):
     len_in = len(intervals)
     out = intervals.copy()
     for i in np.arange(3, len_in - 3):
         if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]):
-            mean_interval = np.mean([intervals[i - 1], intervals[i + 2]])
-            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.04
+            mean_interval = np.median(intervals[i - 3:i + 3])
+            # mean_interval = np.mean([intervals[i - 3], intervals[i + 3]])
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.1   #  (intervals[i:i + 2] - mean_interval) * 0.04
     return out
 
 def get_coef_fibr(intervals):
     len_in = len(intervals)
     mean_interval = np.mean([intervals])
     out = np.zeros(len_in)
-    for i in np.arange(7, len_in - 8):
-        win_t = intervals[i - 7:i + 8]
-        # win_t = np.sort(win_t)[2:-3]
-        # mean_win_t = np.mean(win_t)
-        mean_win_t = np.median(win_t)
+    for i in np.arange(15, len_in - 16):          # np.arange(7, len_in - 8)
+        win_t = intervals[i - 15:i + 16].copy()   # intervals[i - 7:i + 8].copy()
+        ind_max = np.argmax(win_t)
+        ind_min = np.argmin(win_t)
+        med_win_t = np.median(win_t)
+        win_t[ind_max] = med_win_t
+        win_t[ind_min] = med_win_t
+        ind_max = np.argmax(win_t)
+        ind_min = np.argmin(win_t)
+        med_win_t = np.median(win_t)
+        win_t[ind_max] = med_win_t
+        win_t[ind_min] = med_win_t
+        med_win_t = np.median(win_t)
         diff_t = np.abs(win_t - np.roll(win_t, 1))
-        # diff_t = diff_t[1:]
-        # diff_t = np.sort(diff_t)
-        # sum_diff_tf = np.sum(diff_t[:-1])
-        sum_diff_tf = np.median(diff_t)
-        # sum_diff_tf = np.sum(diff_t)
-        # win_t = np.sort(win_t)
-        # out[i] = sum_diff_tf + 5000/mean_win_t
-        out[i] = sum_diff_tf / mean_win_t / mean_interval * 500000
-    # mean_out = np.mean(out)
+        med_diff_tf = np.median(diff_t)
+        # out[i] = (med_diff_tf / med_win_t) * mean_interval  # 500000
+        out[i] = np.mean(diff_t)
+        # out[i] = med_diff_tf * (1 + mean_interval / med_win_t)
+    out = medfilt(out, 15)
+    out = truncate_win(out, 0.2, 30)**2
+    # out = moving_average(out, 11)
     return out
 
 
@@ -478,7 +581,7 @@ def get_start_time(fname):
             start_m = int(f.read(2))
             f.seek(156)
             start_s = int(f.read(2))
-    return start_h, start_m, start_s
+    return start_h, start_m, start_s  # start_addr
 
 def get_time_qrs(addr, start_time):
     s = addr * 4 // 1000
@@ -525,21 +628,70 @@ def get_diff_time(start, stop):
 
     return diff_h, diff_m, diff_s
 
+@time_fun
+@njit
 def moving_average(data, window_size):
-    out = np.zeros(data.size)
+    mean_data = np.mean(data)
+    out = np.ones(len(data)) * mean_data
     for i in range(window_size // 2, len(data) - window_size // 2):
         out[i] = np.mean(data[i - window_size // 2:i + window_size // 2])
     return out
 
-def correct_fibr(p_coef_fibr, fintervals, window_size):
-    len_in = len(p_coef_fibr)
-    out = p_coef_fibr.copy()
-    win = window_size // 2
-    for i in range(win, len_in - win):
-        mean_fibr = np.mean(p_coef_fibr[i - win:i + win])
-        mean_win = np.mean(fintervals[i - win:i + win])
-        if mean_fibr > mean_win:
-            out[i] = (p_coef_fibr[i] - mean_fibr) * 0.8 + mean_fibr * 1.1
-        else:
-            out[i] = (p_coef_fibr[i] - mean_fibr) * 0.8 + mean_fibr * 0.9
+def get_mean_line(data):
+    mean_max = np.mean(data[data > np.mean(data)])
+    mean_max = np.mean(data[data > mean_max])
+    mean_min = np.mean(data[data < np.mean(data)])
+    mean_min = np.mean(data[data < mean_min])
+    return (mean_max + mean_min) / 2
+
+def get_p2p(data, win_size):
+    out = np.zeros(len(data))
+    half_size = win_size // 2
+    for i in range(half_size, len(data) - half_size):
+        win = data[i - half_size:i + half_size]
+        out[i] = np.max(win) - np.min(win)
     return out
+
+@time_fun
+@njit
+def truncate_win(ch, k, win_size):
+    in_ch = ch.copy()
+    out = ch.copy()
+    half_win = win_size // 2
+    for i in range(half_win, len(in_ch) - half_win, 5):
+        buff = in_ch[i - half_win:i + half_win]
+        mean_buff = np.mean(buff)
+        # buff = mean_buff + (buff - mean_buff) * k
+        if len(buff[buff >= mean_buff]) > 0:
+            over_mean = np.mean(buff[buff >= mean_buff])
+            if len(buff[buff > over_mean]) > 0:
+                buff[buff > over_mean] = (buff[buff > over_mean] - over_mean) * k + over_mean
+        if len(buff[buff < mean_buff]) > 0:
+            under_mean = np.mean(buff[buff < mean_buff])
+            if len(buff[buff < under_mean]) > 0:
+                buff[buff < under_mean] = (buff[buff < under_mean] - under_mean) * k + under_mean
+        out[i - half_win:i + half_win] = buff
+    return out
+
+def truncate_ch(ch, k):
+    mean_ch = np.mean(ch)
+    return mean_ch + (ch - mean_ch) * k
+
+def div_intervals(intervals):
+    return intervals / np.roll(intervals, 1)
+
+def get_p2p(ch, win):
+    len_ch = ch.size
+    p2p = np.zeros(len_ch)
+    for i in range(win, len_ch - win):
+        win_p2p = np.ptp(ch[i - win:i + win])
+        p2p[i] = win_p2p
+    return p2p
+
+def get_n_threshold(ch):
+    mean_ch = np.mean(ch)
+    return np.mean(ch[ch < mean_ch])
+
+def get_p_threshold(ch):
+    mean_ch = np.mean(ch)
+    return np.mean(ch[ch > mean_ch])
