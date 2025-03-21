@@ -1,20 +1,38 @@
 from PyQt6.QtWidgets import QFileDialog
 import numpy as np
 from scipy.signal import medfilt, savgol_filter, butter, filtfilt, argrelmax, argrelmin
+from scipy.interpolate import interp1d
 import glob
 import os
 from numba import njit
-from time import time
+# from time import time
+from functools import wraps
+from timeit import default_timer
 
 
 def time_fun(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        start = time()
-        n = func(*args, **kwargs)
-        stop = time()
-        print(func.__name__, stop - start)
-        return n
+        # Measure execution time using default_timer
+        start_time = default_timer()
+        result = func(*args, **kwargs)
+        execution_time = default_timer() - start_time
+
+        # Print elapsed time
+        print(f"Execution time for {func.__name__}: {execution_time:.9f} seconds")
+
+        # Return the result of the decorated function
+        return result
     return wrapper
+
+# def time_fun(func):
+#     def wrapper(*args, **kwargs):
+#         start = time()
+#         n = func(*args, **kwargs)
+#         stop = time()
+#         print(func.__name__, stop - start)
+#         return n
+#     return wrapper
 
 def get_time_from_addr(line):
     fname = glob.glob("d:/Kp_01/*.ecg")[0]
@@ -125,24 +143,38 @@ def parse_B1_txt():
     with open("C:/EcgVar/B1.txt", "r") as f:
         for line in f:
             if ';' in line:
-                temp = int(line.split(';')[0])
-                r_pos.append(temp)
-                temp = int(line.split(';')[1])
-                intervals.append(temp)
-                temp = line.split(';')[2][0]
-                chars.append(temp)
-                temp = int(line.split(':')[1])
-                forms.append(temp)
+                line_split = line.split(';')
+                r_pos.append(int(line_split[0]))
+                intervals.append(int(line_split[1]))
+                chars.append(line_split[2][0])
+                forms.append(int(line.split(':')[1]))
+                # temp = int(line.split(';')[0])
+                # r_pos.append(temp)
+                # temp = int(line.split(';')[1])
+                # intervals.append(temp)
+                # temp = line.split(';')[2][0]
+                # chars.append(temp)
+                # temp = int(line.split(':')[1])
+                # forms.append(temp)
         r_pos = np.array(r_pos)
         intervals = np.array(intervals)
+        mean_interval = np.mean(intervals)
         chars = np.array(chars)
         forms = np.array(forms)
-        # intervals[intervals < 50] = np.mean(intervals)
-        # intervals[intervals > 500] = np.mean(intervals)
-
-    return r_pos, intervals, chars, forms
+        intervals[intervals < 50] = mean_interval
+        intervals[intervals > 550] = mean_interval
+        end_pos = int(len(r_pos) * 0.99)
+    return r_pos[: end_pos], intervals[: end_pos], chars[: end_pos], forms[: end_pos]
+    # return r_pos, intervals, chars, forms
 
 def del_isoline(ch):
+    """
+    Функция удаляет изолинию из сигнала.
+    Параметры:
+    ch (numpy.ndarray): Входной сигнал.
+    Возвращает:
+    numpy.ndarray: Сигнал без изолинии.
+    """
     isoline = medfilt(ch, 151)
     isoline = savgol_filter(isoline, 51, 0)
     out = ch - isoline
@@ -231,6 +263,42 @@ def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
     else:
         return 0
 
+def get_S1():
+    try:
+        os.remove("C:/EcgVar/B1.txt")
+    except FileNotFoundError:
+        pass
+    try:
+        os.remove("C:/EcgVar/F.txt")
+    except FileNotFoundError:
+        pass
+    s = 0
+    with open("C:/EcgVar/B.txt", "r") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
+            if (';N' in lines[i]):# and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+                periods = get_periods(lines[i - 2:i + 3])
+                tf = np.array(periods)
+                ref_t = np.array([tf[1], tf[1] * 0.8, tf[1] * 1.2, tf[1]])
+                ref_t0 = np.array([tf[1], tf[1] * 0.65, tf[1] * 1.15, tf[1]])
+                ref_t1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 1.1, tf[1] * 0.65])
+                ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1], tf[1] * 1.6])
+                # ref_t4 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.5, tf[1]])
+                coef_cor = get_coef_cor(ref_t, tf[1:])
+                coef_cor0 = get_coef_cor(ref_t0, tf[1:])
+                coef_cor1 = get_coef_cor(ref_t1, tf[1:])
+                coef_cor3 = get_coef_cor(ref_t3, tf[1:])
+                # coef_cor4 = get_coef_cor(ref_t4, tf[1:])
+                trs = 0.98 #0.975
+                if (coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs) or (coef_cor3 > trs):# or (coef_cor4 > trs):
+                    lines[i] = lines[i].replace(';N', ';S')
+                    s += 1
+    lines[6] = lines[6] + f"НЖ: {s}"
+    with open("C:/EcgVar/B1.txt", "w") as f:
+        for i, line in enumerate(lines):
+            f.write(line)
+
 def get_S():
     try:
         os.remove("C:/EcgVar/B1.txt")
@@ -245,7 +313,7 @@ def get_S():
         lines = f.readlines()
     for i, line in enumerate(lines):
         if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
-            if (';N' in lines[i]) and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+            if (';N' in lines[i]):# and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
                 periods = get_periods(lines[i - 2:i + 3])
                 tf = np.array(periods)
                 ref_t = np.array([tf[1], tf[1] * 0.8, tf[1] * 1.2, tf[1]])
@@ -256,7 +324,8 @@ def get_S():
                 ref_tA1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 0.35, tf[1]])
                 ref_tA2 = np.array([tf[1], tf[1] * 0.35, tf[1] * 0.65, tf[1]])
                 mean_t = (np.sum(tf) - np.max(tf) - np.min(tf)) / 3
-                if (tf[2] > 50) and (tf[3] > 50) and (tf[2] < mean_t * 2) and (tf[3] < mean_t * 2):
+                # if (tf[2] > 50) and (tf[3] > 50) and (tf[2] < mean_t * 2) and (tf[3] < mean_t * 2):
+                if True:
                     coef_cor = get_coef_cor(ref_t, tf[1:])
                     coef_cor0 = get_coef_cor(ref_t0, tf[1:])
                     coef_cor1 = get_coef_cor(ref_t1, tf[1:])
@@ -457,38 +526,47 @@ def get_number_of_peaks(fragment, n):
 def del_V_S(intervals, chars):
     len_in = len(intervals)
     out = intervals.copy()
-    for i in np.arange(3, len_in - 3):
+    for i in np.arange(10, len_in - 10):
         if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]):
-            mean_interval = np.median(intervals[i - 3:i + 3])
+            # mean_interval = np.median(intervals[i - 3:i + 4])
+            mean_interval = np.mean(intervals[i - 10:i + 10])
             # mean_interval = np.mean([intervals[i - 3], intervals[i + 3]])
-            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.1   #  (intervals[i:i + 2] - mean_interval) * 0.04
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.02   #  (intervals[i:i + 2] - mean_interval) * 0.04
     return out
+
+def get_scatter_coef(intervals):
+    len_in = len(intervals)
+    out = np.zeros(len_in)
+    for i in np.arange(25, len_in - 26):   #  np.arange(15, len_in - 16)
+        win_t = intervals[i - 25:i + 26].copy()
+        mean_win = np.mean(win_t)
+        diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
+        diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
+        diff_t2 = np.sort(diff_t2)[:-12]
+        out[i] = np.mean(diff_t2) * (0.8 + 350 / mean_win)  #  np.mean(diff_t2) * (1.8 + 350 / mean_win)
+        out[i-5] = np.mean(out[i-10:i+1])
+
+    return out
+
 
 def get_coef_fibr(intervals):
     len_in = len(intervals)
-    mean_interval = np.mean([intervals])
+    # mean_interval = np.mean([intervals])
     out = np.zeros(len_in)
-    for i in np.arange(15, len_in - 16):          # np.arange(7, len_in - 8)
-        win_t = intervals[i - 15:i + 16].copy()   # intervals[i - 7:i + 8].copy()
-        ind_max = np.argmax(win_t)
-        ind_min = np.argmin(win_t)
-        med_win_t = np.median(win_t)
-        win_t[ind_max] = med_win_t
-        win_t[ind_min] = med_win_t
-        ind_max = np.argmax(win_t)
-        ind_min = np.argmin(win_t)
-        med_win_t = np.median(win_t)
-        win_t[ind_max] = med_win_t
-        win_t[ind_min] = med_win_t
-        med_win_t = np.median(win_t)
+    for i in np.arange(15, len_in - 16):
+        win_t = intervals[i - 15:i + 16].copy()
+        win_t = np.sort(win_t)
+        mean_win = np.median(win_t)
         diff_t = np.abs(win_t - np.roll(win_t, 1))
-        med_diff_tf = np.median(diff_t)
-        # out[i] = (med_diff_tf / med_win_t) * mean_interval  # 500000
-        out[i] = np.mean(diff_t)
-        # out[i] = med_diff_tf * (1 + mean_interval / med_win_t)
-    out = medfilt(out, 15)
-    out = truncate_win(out, 0.2, 30)**2
-    # out = moving_average(out, 11)
+        diff_t = np.sort(diff_t)
+        # mean_diff = np.mean(diff_t[1:-7])
+        out[i] = np.mean(diff_t[10:-10])
+        # out[i] = np.mean(diff_t[:-5])
+        # out[i] = mean_diff * (1.0 + 150 / mean_win * 1.0)  #  np.mean(diff_t[10:-2]) * (1 + 150 / mean_win)
+    # out = medfilt(out, 51)
+    # out = truncate_win1(out, 0.2, 20)  #  0.2, 30
+    out = moving_average(out, 20) * 10.0
+
     return out
 
 
@@ -628,7 +706,7 @@ def get_diff_time(start, stop):
 
     return diff_h, diff_m, diff_s
 
-@time_fun
+# @time_fun
 @njit
 def moving_average(data, window_size):
     mean_data = np.mean(data)
@@ -652,16 +730,16 @@ def get_p2p(data, win_size):
         out[i] = np.max(win) - np.min(win)
     return out
 
-@time_fun
+# @time_fun
 @njit
-def truncate_win(ch, k, win_size):
+def truncate_win2(ch, k, win_size):
     in_ch = ch.copy()
     out = ch.copy()
     half_win = win_size // 2
-    for i in range(half_win, len(in_ch) - half_win, 5):
+    for i in range(half_win, len(in_ch) - half_win, half_win // 2):
+        # buff = out[i - half_win:i + half_win]
         buff = in_ch[i - half_win:i + half_win]
         mean_buff = np.mean(buff)
-        # buff = mean_buff + (buff - mean_buff) * k
         if len(buff[buff >= mean_buff]) > 0:
             over_mean = np.mean(buff[buff >= mean_buff])
             if len(buff[buff > over_mean]) > 0:
@@ -670,6 +748,17 @@ def truncate_win(ch, k, win_size):
             under_mean = np.mean(buff[buff < mean_buff])
             if len(buff[buff < under_mean]) > 0:
                 buff[buff < under_mean] = (buff[buff < under_mean] - under_mean) * k + under_mean
+        out[i - half_win:i + half_win] = buff
+    return out
+
+def truncate_win1(ch, k, win_size):
+    in_ch = ch.copy()
+    out = ch.copy()
+    half_win = win_size // 2
+    for i in range(half_win, len(in_ch) - half_win, 5):
+        buff = out[i - half_win:i + half_win]
+        mean_buff = np.mean(buff)
+        buff = mean_buff + (buff - mean_buff) * k
         out[i - half_win:i + half_win] = buff
     return out
 
@@ -697,8 +786,15 @@ def get_p_threshold(ch):
     return np.mean(ch[ch > mean_ch])
 
 def interp_pr(ch):
-    len_ch = ch.size
-    for i in np.arange(1, len_ch):
-        if ch[i] == 0:
-            ch[i] = ch[i - 1]
+    out = ch.copy()
+    non_zero_indices = np.nonzero(out)[0]
+    if len(non_zero_indices) == 0:
+        return out
+    interp_func = interp1d(non_zero_indices, out[non_zero_indices], kind='linear', fill_value='extrapolate')
+    out[out == 0] = interp_func(np.where(out == 0)[0])
+    return out
+
+
+
+
 
