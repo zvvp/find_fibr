@@ -4,7 +4,7 @@ import pyqtgraph as pg
 import numpy as np
 from scipy.signal import medfilt, butter, filtfilt, argrelmax
 from functions import parse_B1_txt, get_S1, moving_average, del_V_S, truncate_win2, interp_pr, truncate_ch, \
-    get_scatter_coef
+    get_scatter_coef, get_p2p
 from time import time
 import logging
 
@@ -15,14 +15,19 @@ app = QApplication(sys.argv)
 
 p = pg.plot()
 p.showGrid(x=True, y=True)
-p01 = pg.plot()
-p01.showGrid(x=True, y=True)
-p02 = pg.plot()
-p02.showGrid(x=True, y=True)
-p03 = pg.plot()
-p03.showGrid(x=True, y=True)
+p.setTitle('p')
+# p01 = pg.plot()
+# p01.showGrid(x=True, y=True)
+# p01.setTitle('p01')
+# p02 = pg.plot()
+# p02.showGrid(x=True, y=True)
+# p02.setTitle('p02')
+# p03 = pg.plot()
+# p03.showGrid(x=True, y=True)
+# p03.setTitle('p03')
 # p04 = pg.plot()
 # p04.showGrid(x=True, y=True)
+# p04.setTitle('p04')
 
 
 bl, al = butter(2, 13.0, 'lp', fs=250)  # 2, 8.0, 'lp', fs=250
@@ -77,18 +82,18 @@ def plot_select_p(lead1, lead2, lead3, intervals, r_pos, ind):
     fragment1 = lead1[start:stop]
     fragment2 = lead2[start:stop]
     fragment3 = lead3[start:stop]
-    p01.plot(fragment1, pen='g')
-    p01.plot(fragment2, pen='y')
-    p01.plot(fragment3, pen='c')
+    # p01.plot(fragment1, pen='g')
+    # p01.plot(fragment2, pen='y')
+    # p01.plot(fragment3, pen='c')
     fragment1 = filtfilt(bl, al, fragment1)
     fragment2 = filtfilt(bl, al, fragment2)
     fragment3 = filtfilt(bl, al, fragment3)
-    p01.plot(fragment1, pen='g')
-    p01.plot(fragment2, pen='y')
-    p01.plot(fragment3, pen='c')
-    p02.plot(lead1[r_pos[ind] - 1600:r_pos[ind] + 1600], pen='g')
-    p02.plot(lead2[r_pos[ind] - 1600:r_pos[ind] + 1600] - 2, pen='y')
-    p02.plot(lead3[r_pos[ind] - 1600:r_pos[ind] + 1600] - 4, pen='c')
+    # p01.plot(fragment1, pen='g')
+    # p01.plot(fragment2, pen='y')
+    # p01.plot(fragment3, pen='c')
+    # p02.plot(lead1[r_pos[ind] - 1600:r_pos[ind] + 1600], pen='g')
+    # p02.plot(lead2[r_pos[ind] - 1600:r_pos[ind] + 1600] - 2, pen='y')
+    # p02.plot(lead3[r_pos[ind] - 1600:r_pos[ind] + 1600] - 4, pen='c')
 
 
 @time_fun
@@ -210,13 +215,13 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # p03.plot(presence_PR1, pen='g')
     # p03.plot(presence_PR2, pen='y')
     # p03.plot(presence_PR3, pen='c')
-    p03.plot(mean_PR, pen='y')
+    # p03.plot(mean_PR, pen='y')
     # p03.plot(arr_amp_p1, pen='g')
     # p03.plot(arr_amp_p2-1, pen='g')
     # p03.plot(arr_amp_p3-2, pen='g')
-    p03.plot(marr_amp_p1, pen='g')
-    p03.plot(marr_amp_p2 - 1, pen='g')
-    p03.plot(marr_amp_p3 - 2, pen='g')
+    # p03.plot(marr_amp_p1, pen='g')
+    # p03.plot(marr_amp_p2 - 1, pen='g')
+    # p03.plot(marr_amp_p3 - 2, pen='g')
 
     return presence_PR1, presence_PR2, presence_PR3, marr_amp_p1, marr_amp_p2, marr_amp_p3, mean_PR
 
@@ -268,7 +273,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     p1[i] = 0.0
 
-            if mean_PR[i] < int(intervals[i] * 0.5):
+            # if mean_PR[i] < int(intervals[i] * 0.5):
 
                 fragment_l2_f = filtfilt(bl, al, fragment_l2)[6:-4]
                 ind_max2 = argrelmax(fragment_l2_f)[0]
@@ -283,7 +288,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     p2[i] = 0.0
 
-            if mean_PR[i] < int(intervals[i] * 0.5):
+            # if mean_PR[i] < int(intervals[i] * 0.5):
 
                 fragment_l3_f = filtfilt(bl, al, fragment_l3)[6:-4]
                 ind_max3 = argrelmax(fragment_l3_f)[0]
@@ -298,36 +303,39 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     p3[i] = 0.0
             # logging.info(f"amp_p1 = {amp_p1:.4f}, amp_p2 = {amp_p2:.4f}, amp_p3 = {amp_p3:.4f}")
-        if i == 78:
-            p01.plot(fragment_l1, pen='g')
-            p01.plot(fragment_l2, pen='y')
-            p01.plot(fragment_l3, pen='c')
-            p01.plot(fragment_l1_f, pen='g')
-            p01.plot(fragment_l2_f, pen='y')
-            p01.plot(fragment_l3_f, pen='c')
-            p02.plot(lead1[r_pos[i] - 2000:r_pos[i] + 2000], pen='g')
-            p02.plot(lead2[r_pos[i] - 2000:r_pos[i] + 2000] - 2, pen='y')
-            p02.plot(lead3[r_pos[i] - 2000:r_pos[i] + 2000] - 4, pen='c')
-            print(p1[i - 4:i + 1])
-            print(p2[i - 4:i + 1])
-            print(p3[i - 4:i + 1])
-        sum_p1 = np.sum(p1[i - 4:i + 1])
-        sum_p2 = np.sum(p2[i - 4:i + 1])
-        sum_p3 = np.sum(p3[i - 4:i + 1])
+        # if i == 78:
+        #     p01.plot(fragment_l1, pen='g')
+        #     p01.plot(fragment_l2, pen='y')
+        #     p01.plot(fragment_l3, pen='c')
+        #     p01.plot(fragment_l1_f, pen='g')
+        #     p01.plot(fragment_l2_f, pen='y')
+        #     p01.plot(fragment_l3_f, pen='c')
+        #     p02.plot(lead1[r_pos[i] - 2000:r_pos[i] + 2000], pen='g')
+        #     p02.plot(lead2[r_pos[i] - 2000:r_pos[i] + 2000] - 2, pen='y')
+        #     p02.plot(lead3[r_pos[i] - 2000:r_pos[i] + 2000] - 4, pen='c')
+        #     print(p1[i - 4:i + 1])
+        #     print(p2[i - 4:i + 1])
+        #     print(p3[i - 4:i + 1])
+        sum_p1 = np.sum(p1[i - 4:i - 1]) + p1[i-1] * 2.0 + p1[i] * 3.0
+        sum_p2 = np.sum(p2[i - 4:i - 1]) + p2[i-1] * 2.0 + p2[i] * 3.0
+        sum_p3 = np.sum(p3[i - 4:i - 1]) + p3[i-1] * 2.0 + p3[i] * 3.0
+        # sum_p1 = np.sum(p1[i - 4:i - 1]) + p1[i-1] * 2.0 + p1[i] * 3.0
+        # sum_p2 = np.sum(p2[i - 4:i - 1]) + p2[i-1] * 2.0 + p2[i] * 3.0
+        # sum_p3 = np.sum(p3[i - 4:i - 1]) + p3[i-1] * 2.0 + p3[i] * 3.0
         if np.sum(fragment_l1) == 0.0:
             sum_p1 = (sum_p2 + sum_p3) / 2.0
         elif np.sum(fragment_l2) == 0.0:
             sum_p2 = (sum_p1 + sum_p3) / 2.0
         elif np.sum(fragment_l3) == 0.0:
             sum_p3 = (sum_p1 + sum_p2) / 2.0
-        elif ((sum_p1 < 2.5) and (sum_p2 > 2.5) and (sum_p3 > 2.5)) or (
-                (sum_p1 > 2.5) and (sum_p2 < 2.5) and (sum_p3 < 2.5)):
+        elif ((sum_p1 < 4.5) and (sum_p2 > 4.5) and (sum_p3 > 4.5)) or (
+                (sum_p1 > 4.5) and (sum_p2 < 4.5) and (sum_p3 < 4.5)):
             sum_p1 = (sum_p2 + sum_p3) / 2.0
-        elif ((sum_p2 < 2.5) and (sum_p1 > 2.5) and (sum_p3 > 2.5)) or (
-                (sum_p2 > 2.5) and (sum_p1 < 2.5) and (sum_p3 < 2.5)):
+        elif ((sum_p2 < 4.5) and (sum_p1 > 4.5) and (sum_p3 > 4.5)) or (
+                (sum_p2 > 4.5) and (sum_p1 < 4.5) and (sum_p3 < 4.5)):
             sum_p2 = (sum_p1 + sum_p3) / 2.0
-        elif ((sum_p3 < 2.5) and (sum_p1 > 2.5) and (sum_p2 > 2.5)) or (
-                (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
+        elif ((sum_p3 < 4.5) and (sum_p1 > 4.5) and (sum_p2 > 4.5)) or (
+                (sum_p3 > 4.5) and (sum_p1 < 4.5) and (sum_p2 < 4.5)):
             sum_p3 = (sum_p1 + sum_p2) / 2.0
         #     print(p1[i - 4:i + 1])
         #     print(p2[i - 4:i + 1])
@@ -353,16 +361,28 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
         #         (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
         #     if sum_p3 < 5.0:
         #         sum_p3 = (sum_p1 + sum_p2) / 2.0
-        sum_buff = sum_p1 + sum_p2 + sum_p3  # np.sum(p1[i-3:i+1]) + np.sum(p2[i-3:i+1]) + np.sum(p3[i-3:i+1])
-
-        out[i - 2] = (15.0 - sum_buff) * 12.0  # (15.0 - sum_buff) * 9.3
+        sum_buff = sum_p1 + sum_p2 + sum_p3
+        # sum_p_i = p1[i] + p2[i] + p3[i]
+        # if sum_p_i == 3.0:
+        #     sum_buff += 8.0
+        # elif (sum_p_i == 0.0):
+        #     sum_buff -= 8.0
+            # if sum_buff < 0.0:
+            #     sum_buff = 0.0
+        sum_buff = 24.0 - sum_buff
+        # if sum_buff > 20.0:
+        #     sum_buff = 20.0
+        # if sum_buff < 0.0:
+        #     sum_buff = 0.0
+        out[i - 2] = sum_buff * 4.2
+        # out[i - 2] = (20.0 - sum_buff) * 3.0  # (18.0 - sum_buff) * 5.0
         # a = 1
     # out = medfilt(out, 15)
     # out = moving_average(out, 40)
     # out = medfilt(out, 15)
     # out = moving_average(out, 50)
     # out = moving_average(out, 25)
-    out = moving_average(out, 31)
+    # out = moving_average(out, 31)
     # out = moving_average(out, 31)
     # out = truncate_win(out, 0.2, 10)
     # out = truncate_win(out, 0.2, 20)
@@ -399,19 +419,35 @@ def main():
                                                                            inds_min)
     coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, pos_p1, pos_p2, pos_p3, mean_p1, mean_p2, mean_p3,
                    mean_PR)
-    # p.plot(coef_p, pen='y')
-    coef_p = truncate_win2(coef_p, 0.9, 500)
-    coef_p = truncate_win2(coef_p, 0.8, 300)
+    # p.plot(coef_p, pen='m')
+    # coef_p = moving_average(coef_p, 31)
+    coef_p = truncate_win2(coef_p, 0.8, 500)  # 0.9, 500
+    coef_p = moving_average(coef_p, 31)
+    coef_p = truncate_win2(coef_p, 0.7, 400)
+    # coef_p = moving_average(coef_p, 31)
+    # coef_p = truncate_win2(coef_p, 0.5, 300)
+    # coef_p = truncate_win2(coef_p, 0.4, 200)# 0.8, 300
     p.plot(coef_p, pen='y')
 
     # coef_fibr = get_coef_fibr(fintervals)
     coef_fibr = get_scatter_coef(fintervals)
-    # p.plot(coef_fibr, pen='c')
-    # coef_fibr = truncate_win2(coef_fibr, 0.6, 170)
-    coef_fibr = truncate_win2(coef_fibr, 0.9, 500)
-    coef_fibr = truncate_win2(coef_fibr, 0.8, 300)
+    # p.plot(coef_fibr, pen='m')
+    # p2p_fibr = get_p2p(coef_p, 100)
+    # p.plot(p2p_fibr, pen='c')
+    # p.plot(av_fibr, pen='w')
+    # p2p_fibr = get_p2p(coef_p, 300)
+    # p.plot(p2p_fibr * av_fibr, pen='r')
+    coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
+    coef_fibr = truncate_win2(coef_fibr, 0.2, 20)
+    # coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
+    # coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
+    # coef_fibr = moving_average(coef_fibr, 100)
+    # coef_fibr = truncate_win2(coef_fibr, 0.9, 500)
+    # coef_fibr = truncate_win2(coef_fibr, 0.8, 300)
     p.plot(coef_fibr, pen='c')
-    e_coef_p = coef_p * coef_fibr * 0.6  # 0.3
+    # e_coef_p = coef_p * coef_fibr * 0.6  # 0.3
+    # e_coef_p = (0.68 * coef_p + 0.5 * coef_fibr)**2
+    e_coef_p = 1.1 * (0.4 * coef_p + 0.7 * coef_fibr)**2.0 + coef_p * coef_fibr * 1.0
     # e_coef_p = truncate_win2(e_coef_p, 0.6, 170)
     mean_coef_p = np.mean(e_coef_p)
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p])
@@ -446,22 +482,32 @@ def main():
     coef3 = mean_coef_p3 / mean_fintervals
     coef23 = mean_23 / mean_fintervals
     print(f"coef2 = {coef2:.2f}, coef = {coef:.2f}, coef3 = {coef3:.2f}, coef23 = {coef23:.2f}")
-
-    if (coef2 > 4.0) and (coef23 < 1.0):
-        norm_coef = 4.0 / coef2
-        print(f"over = 2")
-    elif (coef > 1.0) and (coef3 < 1.0):
-        norm_coef = 5.0 / coef
-        print(f"over = 2 or 2, 23")
-    elif coef3 > 1.0:
+    if coef3 > 1.0:
         e_coef_p = truncate_ch(e_coef_p, 0.8)
         norm_coef = 1.0
         print(f"over = 2, 23, 3")
     elif 1.0 > coef2 > 0.2:
-        norm_coef = 0.7
+        norm_coef = 0.6
         print(f"under = 2, 23, 3")
+    # elif (coef2 > 4.0) and (coef23 < 1.0):
+    #     norm_coef = 4.0 / coef2
+    #     print(f"over = 2")
+    elif (coef > 1.0) and (coef23 > 1.0) and (coef3 < 1.0):
+        if coef > 3.5:
+            norm_coef = 3.5 / coef
+        else:
+            norm_coef = coef / coef23 + 0.2
+            if norm_coef < 0.45:
+                norm_coef = 0.45
+        print(f"Условие: (coef > 1.0) and (coef23 > 1.0) and (coef3 < 1.0)")
+    elif (coef2 > 1.0) and (coef23 > 1.0) and (coef < 1.0) and (coef3 < 1.0):
+        norm_coef = coef23 / coef2
+        if norm_coef < 0.5:
+            norm_coef = 0.5
+        print(f"Условие: (coef2 > 1.0) and (coef23 > 1.0) and (coef < 1.0) and (coef3 < 1.0)")
     else:
         norm_coef = 1.0
+        print(f"else: norm_coef = 1.0")
     # ref1 = 3.0  # 8.0
     # if (coef23 > ref1) and (coef < 1.0):
     #     norm_coef = ref1 / coef23
@@ -483,7 +529,7 @@ def main():
     # else:
     #     norm_coef = 1
     print(f"norm_coef = {norm_coef:.2f}")
-    e_coef_p *= norm_coef
+    # e_coef_p *= norm_coef
     p.plot(e_coef_p, pen='r')
     p.plot(mean_line, pen='w')
     p.plot(mean_line2, pen='w')

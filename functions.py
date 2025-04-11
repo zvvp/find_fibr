@@ -535,17 +535,27 @@ def del_V_S(intervals, chars):
     return out
 
 def get_scatter_coef(intervals):
+    # win_t = intervals[:50].copy()
+    # mean_win = np.mean(win_t)
+    # diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
+    # diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
+    # diff_t2 = np.sort(diff_t2)[:-12]
+    # start_value = np.mean(diff_t2) * (0.8 + 350 / mean_win)  #  np.mean(diff_t2) * (1.8 + 350 / mean_win)
+    # out[i-5] = np.mean(out[i-10:i+1])
     len_in = len(intervals)
     out = np.zeros(len_in)
+    # out = np.ones(len_in) * start_value
     for i in np.arange(25, len_in - 26):   #  np.arange(15, len_in - 16)
         win_t = intervals[i - 25:i + 26].copy()
         mean_win = np.mean(win_t)
         diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
         diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
         diff_t2 = np.sort(diff_t2)[:-12]
-        out[i] = np.mean(diff_t2) * (0.8 + 350 / mean_win)  #  np.mean(diff_t2) * (1.8 + 350 / mean_win)
+        out[i] = np.mean(diff_t2)
+        # out[i] = np.mean(diff_t2) * (2.0 + 250 / mean_win)  #  np.mean(diff_t2) * (0.8 + 350 / mean_win)
         out[i-5] = np.mean(out[i-10:i+1])
-
+    out[:26] = np.mean(out[30:50])
+    out[-26:] = np.mean(out[-50:-30])
     return out
 
 
@@ -709,7 +719,7 @@ def get_diff_time(start, stop):
 # @time_fun
 @njit
 def moving_average(data, window_size):
-    mean_data = np.mean(data)
+    mean_data = np.mean(data[:window_size])
     out = np.ones(len(data)) * mean_data
     for i in range(window_size // 2, len(data) - window_size // 2):
         out[i] = np.mean(data[i - window_size // 2:i + window_size // 2])
@@ -722,7 +732,7 @@ def get_mean_line(data):
     mean_min = np.mean(data[data < mean_min])
     return (mean_max + mean_min) / 2
 
-def get_p2p(data, win_size):
+def get_p2p0(data, win_size):
     out = np.zeros(len(data))
     half_size = win_size // 2
     for i in range(half_size, len(data) - half_size):
