@@ -374,7 +374,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
         #     sum_buff = 20.0
         # if sum_buff < 0.0:
         #     sum_buff = 0.0
-        out[i - 2] = sum_buff * 4.2
+        out[i - 2] = sum_buff * 4.5
         # out[i - 2] = (20.0 - sum_buff) * 3.0  # (18.0 - sum_buff) * 5.0
         # a = 1
     # out = medfilt(out, 15)
@@ -408,6 +408,7 @@ def main():
     fintervals = del_V_S(intervals, chars)
     # p.plot(fintervals, pen="g")
     m_fintervals = medfilt(fintervals, 21)  # 5
+    # p.plot(m_fintervals, pen="y")
     cleen_fintervals = m_fintervals + (fintervals - m_fintervals) * 0.2
     p.plot(cleen_fintervals, pen="g")
     mean_fintervals = np.mean(cleen_fintervals)
@@ -437,18 +438,18 @@ def main():
     # p.plot(av_fibr, pen='w')
     # p2p_fibr = get_p2p(coef_p, 300)
     # p.plot(p2p_fibr * av_fibr, pen='r')
-    coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
-    coef_fibr = truncate_win2(coef_fibr, 0.2, 20)
+    # coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
+    # coef_fibr = truncate_win2(coef_fibr, 0.2, 20)
     # coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
     # coef_fibr = truncate_win2(coef_fibr, 0.1, 10)
     # coef_fibr = moving_average(coef_fibr, 100)
-    # coef_fibr = truncate_win2(coef_fibr, 0.9, 500)
-    # coef_fibr = truncate_win2(coef_fibr, 0.8, 300)
+    coef_fibr = truncate_win2(coef_fibr, 0.9, 500)
+    coef_fibr = truncate_win2(coef_fibr, 0.8, 300)
     p.plot(coef_fibr, pen='c')
-    # e_coef_p = coef_p * coef_fibr * 0.6  # 0.3
-    # e_coef_p = (0.68 * coef_p + 0.5 * coef_fibr)**2
-    e_coef_p = 1.1 * (0.4 * coef_p + 0.7 * coef_fibr)**2.0 + coef_p * coef_fibr * 1.0
-    # e_coef_p = truncate_win2(e_coef_p, 0.6, 170)
+    e_coef_p = coef_p * coef_fibr * 1.0  # 0.3
+    p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size + 0.07
+    p.plot(e_coef_p, pen='b')
+    print(f"p_count_coef = {p_count_coef}")
     mean_coef_p = np.mean(e_coef_p)
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p])
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p2])
@@ -482,29 +483,32 @@ def main():
     coef3 = mean_coef_p3 / mean_fintervals
     coef23 = mean_23 / mean_fintervals
     print(f"coef2 = {coef2:.2f}, coef = {coef:.2f}, coef3 = {coef3:.2f}, coef23 = {coef23:.2f}")
+    # sum_coef = coef23 + coef
+    sum_coef = abs(coef23 - coef)
+    if sum_coef > 10.0:
+        sum_coef = 10.0
+    sum_coef = (sum_coef)**0.5 * (p_count_coef * 10.0)**0.5 / 10.0
+    print(f"sum_coef = {sum_coef:.2f}")
     if coef3 > 1.0:
         e_coef_p = truncate_ch(e_coef_p, 0.8)
         norm_coef = 1.0
         print(f"over = 2, 23, 3")
-    elif 1.0 > coef2 > 0.2:
-        norm_coef = 0.6
+    elif 1.0 > coef2 > 0.3:
+        norm_coef = 0.45
         print(f"under = 2, 23, 3")
     # elif (coef2 > 4.0) and (coef23 < 1.0):
     #     norm_coef = 4.0 / coef2
     #     print(f"over = 2")
-    elif (coef > 1.0) and (coef23 > 1.0) and (coef3 < 1.0):
-        if coef > 3.5:
-            norm_coef = 3.5 / coef
-        else:
-            norm_coef = coef / coef23 + 0.2
-            if norm_coef < 0.45:
-                norm_coef = 0.45
-        print(f"Условие: (coef > 1.0) and (coef23 > 1.0) and (coef3 < 1.0)")
-    elif (coef2 > 1.0) and (coef23 > 1.0) and (coef < 1.0) and (coef3 < 1.0):
-        norm_coef = coef23 / coef2
-        if norm_coef < 0.5:
-            norm_coef = 0.5
-        print(f"Условие: (coef2 > 1.0) and (coef23 > 1.0) and (coef < 1.0) and (coef3 < 1.0)")
+    # elif (coef > 1.0) and (coef23 > 4.0) and (coef3 < 1.0):
+    #     norm_coef = 4.0 / coef23
+    #     if norm_coef < 0.5:
+    #         norm_coef = 0.5
+    #     print(f"Условие: (coef > 1.0) and (coef23 > 4.0) and (coef3 < 1.0)")
+    elif (coef23 > 4.0) and (coef3 < 1.0):
+        norm_coef = sum_coef
+        if norm_coef < 0.45:
+            norm_coef = 0.45
+        print(f"Условие: (coef23 > 4.0) and (coef3 < 1.0)")
     else:
         norm_coef = 1.0
         print(f"else: norm_coef = 1.0")
@@ -529,7 +533,7 @@ def main():
     # else:
     #     norm_coef = 1
     print(f"norm_coef = {norm_coef:.2f}")
-    # e_coef_p *= norm_coef
+    e_coef_p *= norm_coef
     p.plot(e_coef_p, pen='r')
     p.plot(mean_line, pen='w')
     p.plot(mean_line2, pen='w')

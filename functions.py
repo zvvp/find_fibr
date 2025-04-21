@@ -551,8 +551,9 @@ def get_scatter_coef(intervals):
         diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
         diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
         diff_t2 = np.sort(diff_t2)[:-12]
-        out[i] = np.mean(diff_t2)
-        # out[i] = np.mean(diff_t2) * (2.0 + 250 / mean_win)  #  np.mean(diff_t2) * (0.8 + 350 / mean_win)
+        # out[i] = np.mean(diff_t2)
+        # out[i] = np.exp(-out[i]**2)
+        out[i] = np.mean(diff_t2) * (1.6 + 250 / mean_win)  #  np.mean(diff_t2) * (0.8 + 350 / mean_win)
         out[i-5] = np.mean(out[i-10:i+1])
     out[:26] = np.mean(out[30:50])
     out[-26:] = np.mean(out[-50:-30])
