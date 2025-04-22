@@ -447,9 +447,11 @@ def main():
     coef_fibr = truncate_win2(coef_fibr, 0.8, 300)
     p.plot(coef_fibr, pen='c')
     e_coef_p = coef_p * coef_fibr * 1.0  # 0.3
-    p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size + 0.07
+    # p_count_coef = e_coef_p.size / e_coef_p[e_coef_p > cleen_fintervals].size
+    p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size + 0.5
+    # p_count_coef = np.exp(-(p_count_coef - 1.0)**2)
     p.plot(e_coef_p, pen='b')
-    print(f"p_count_coef = {p_count_coef}")
+    print(f"p_count_coef = {p_count_coef:.2f}")
     mean_coef_p = np.mean(e_coef_p)
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p])
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p2])
@@ -484,14 +486,15 @@ def main():
     coef23 = mean_23 / mean_fintervals
     print(f"coef2 = {coef2:.2f}, coef = {coef:.2f}, coef3 = {coef3:.2f}, coef23 = {coef23:.2f}")
     # sum_coef = coef23 + coef
-    sum_coef = abs(coef23 - coef)
-    if sum_coef > 10.0:
-        sum_coef = 10.0
-    sum_coef = (sum_coef)**0.5 * (p_count_coef * 10.0)**0.5 / 10.0
-    print(f"sum_coef = {sum_coef:.2f}")
+    # sum_coef = abs(coef23 - coef)
+    # if sum_coef > 10.0:
+    #     sum_coef = 10.0
+    # sum_coef = (sum_coef)**0.5 * (p_count_coef * 10.0)**0.5 / 10.0
+    # print(f"sum_coef = {sum_coef:.2f}")
     if coef3 > 1.0:
         e_coef_p = truncate_ch(e_coef_p, 0.8)
-        norm_coef = 1.0
+        # norm_coef = 1.0
+        norm_coef = p_count_coef
         print(f"over = 2, 23, 3")
     elif 1.0 > coef2 > 0.3:
         norm_coef = 0.45
@@ -504,14 +507,14 @@ def main():
     #     if norm_coef < 0.5:
     #         norm_coef = 0.5
     #     print(f"Условие: (coef > 1.0) and (coef23 > 4.0) and (coef3 < 1.0)")
-    elif (coef23 > 4.0) and (coef3 < 1.0):
-        norm_coef = sum_coef
-        if norm_coef < 0.45:
-            norm_coef = 0.45
-        print(f"Условие: (coef23 > 4.0) and (coef3 < 1.0)")
+    # elif (coef23 > 4.0) and (coef3 < 1.0):
+    #     norm_coef = sum_coef
+    #     if norm_coef < 0.45:
+    #         norm_coef = 0.45
+    #     print(f"Условие: (coef23 > 4.0) and (coef3 < 1.0)")
     else:
-        norm_coef = 1.0
-        print(f"else: norm_coef = 1.0")
+        norm_coef = 1.0 * p_count_coef
+        print(f"else: norm_coef = {p_count_coef:.2f}")
     # ref1 = 3.0  # 8.0
     # if (coef23 > ref1) and (coef < 1.0):
     #     norm_coef = ref1 / coef23
