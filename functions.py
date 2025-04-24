@@ -135,12 +135,12 @@ def parse_B_txt():
     return r_pos, intervals, chars, forms
 
 # @time_fun
-def parse_B1_txt():
+def parse_B1_txt(fdir):
     r_pos = []
     intervals = []
     chars = []
     forms = []
-    with open("C:/EcgVar/B1.txt", "r") as f:
+    with open(fdir + "/B1.txt", "r") as f:
         for line in f:
             if ';' in line:
                 line_split = line.split(';')
@@ -263,17 +263,17 @@ def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
     else:
         return 0
 
-def get_S1():
+def get_S1(fdir):
     try:
-        os.remove("C:/EcgVar/B1.txt")
+        os.remove(fdir + "/B1.txt")
     except FileNotFoundError:
         pass
     try:
-        os.remove("C:/EcgVar/F.txt")
+        os.remove(fdir + "/F.txt")
     except FileNotFoundError:
         pass
     s = 0
-    with open("C:/EcgVar/B.txt", "r") as f:
+    with open(fdir + "/B.txt", "r") as f:
         lines = f.readlines()
     for i, line in enumerate(lines):
         if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
@@ -295,7 +295,7 @@ def get_S1():
                     lines[i] = lines[i].replace(';N', ';S')
                     s += 1
     lines[6] = lines[6] + f"НЖ: {s}"
-    with open("C:/EcgVar/B1.txt", "w") as f:
+    with open(fdir + "/B1.txt", "w") as f:
         for i, line in enumerate(lines):
             f.write(line)
 

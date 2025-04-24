@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QFileDialog
 import sys
 import pyqtgraph as pg
 import numpy as np
@@ -393,16 +393,18 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
 
 
 def main():
-    lead1 = np.load("d:/Kp_01/clean_lead1.npy")
-    lead2 = np.load("d:/Kp_01/clean_lead2.npy")
-    lead3 = np.load("d:/Kp_01/clean_lead3.npy")
+    fdir = QFileDialog.getExistingDirectory(parent=None, directory="C:/EcgVar")
+    print(fdir)
+    lead1 = np.load(fdir + "/clean_lead1.npy")
+    lead2 = np.load(fdir + "/clean_lead2.npy")
+    lead3 = np.load(fdir + "/clean_lead3.npy")
     # len_lead = lead1.size
     # end_lead = int(len_lead * 0.98)
     # lead1 = lead1[:end_lead]
     # lead2 = lead2[:end_lead]
     # lead3 = lead3[:end_lead]
-    get_S1()
-    r_pos, intervals, chars, forms = parse_B1_txt()
+    get_S1(fdir)
+    r_pos, intervals, chars, forms = parse_B1_txt(fdir)
     # plot_select_p(lead1, lead2, lead3, intervals, r_pos, 44215)
     # p.plot(intervals, pen="g")
     fintervals = del_V_S(intervals, chars)
@@ -451,7 +453,7 @@ def main():
     p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size + 0.5
     # p_count_coef = np.exp(-(p_count_coef - 1.0)**2)
     p.plot(e_coef_p, pen='b')
-    print(f"p_count_coef = {p_count_coef:.2f}")
+    print(f"p_count_coef = {p_count_coef}")
     mean_coef_p = np.mean(e_coef_p)
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p])
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p2])
@@ -493,49 +495,25 @@ def main():
     # print(f"sum_coef = {sum_coef:.2f}")
     if coef3 > 1.0:
         e_coef_p = truncate_ch(e_coef_p, 0.8)
-        # norm_coef = 1.0
         norm_coef = p_count_coef
         print(f"over = 2, 23, 3")
-    elif 1.0 > coef2 > 0.3:
+    elif (coef2 < 1.0) and (p_count_coef == 0.5):
         norm_coef = 0.45
-        print(f"under = 2, 23, 3")
-    # elif (coef2 > 4.0) and (coef23 < 1.0):
-    #     norm_coef = 4.0 / coef2
-    #     print(f"over = 2")
-    # elif (coef > 1.0) and (coef23 > 4.0) and (coef3 < 1.0):
-    #     norm_coef = 4.0 / coef23
-    #     if norm_coef < 0.5:
-    #         norm_coef = 0.5
-    #     print(f"Условие: (coef > 1.0) and (coef23 > 4.0) and (coef3 < 1.0)")
-    # elif (coef23 > 4.0) and (coef3 < 1.0):
-    #     norm_coef = sum_coef
-    #     if norm_coef < 0.45:
-    #         norm_coef = 0.45
-    #     print(f"Условие: (coef23 > 4.0) and (coef3 < 1.0)")
+        print(f"(p_count_coef == 0.5) under = 2, 23, 3")
+    elif (coef2 < 1.0) and (p_count_coef > 0.5):
+        norm_coef = 0.8
+        print(f"(p_count_coef > 0.5) under = 2, 23, 3")
+    # elif (10.0 > coef23 > 4.0) and (coef > 1.0) and (coef3 < 1.0):
+    #     norm_coef = p_count_coef - 0.15
+    #     print(f"Условие: (10.0 > coef23 > 4.0) and (coef > 1.0) and (coef3 < 1.0)")
+    elif (coef > 1.0) and (coef3 < 1.0):
+        norm_coef = (coef / 3.0)**0.5 * p_count_coef
+        print(f"Условие: (coef > 1.0) and (coef3 < 1.0)")
     else:
-        norm_coef = 1.0 * p_count_coef
-        print(f"else: norm_coef = {p_count_coef:.2f}")
-    # ref1 = 3.0  # 8.0
-    # if (coef23 > ref1) and (coef < 1.0):
-    #     norm_coef = ref1 / coef23
-    #     print(f"over = 1")
-    # elif (coef2 > 1.0) and (coef23 < 1.0):
-    #     norm_coef = coef23 / coef2
-    #     print(f"over = 1.1")
-    # elif (coef23 > 1.0) and (coef > 3.0) and (coef < 1.0):
-    #     norm_coef = ref1 / coef
-    #     print(f"over = 2")
-    # elif coef3 > 1.0:
-    #     e_coef_p = truncate_ch(e_coef_p, 0.8)
-    #     norm_coef = 1.0
-    #     # norm_coef = coef23 / coef3
-    #     print(f"over = 3")
-    # elif 1.0 > coef2 > 0.2:
-    #     norm_coef = 0.7
-    #     print(f"under = 3")
-    # else:
-    #     norm_coef = 1
-    print(f"norm_coef = {norm_coef:.2f}")
+        norm_coef = p_count_coef
+        print(f"else: norm_coef = {p_count_coef}")
+
+    print(f"norm_coef = {norm_coef}")
     e_coef_p *= norm_coef
     p.plot(e_coef_p, pen='r')
     p.plot(mean_line, pen='w')
