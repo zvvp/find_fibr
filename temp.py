@@ -19,16 +19,15 @@ p.setTitle('p')
 # p01 = pg.plot()
 # p01.showGrid(x=True, y=True)
 # p01.setTitle('p01')
-# p02 = pg.plot()
-# p02.showGrid(x=True, y=True)
-# p02.setTitle('p02')
+p02 = pg.plot()
+p02.showGrid(x=True, y=True)
+p02.setTitle('p02')
 # p03 = pg.plot()
 # p03.showGrid(x=True, y=True)
 # p03.setTitle('p03')
 # p04 = pg.plot()
 # p04.showGrid(x=True, y=True)
 # p04.setTitle('p04')
-
 
 bl, al = butter(2, 13.0, 'lp', fs=250)  # 2, 8.0, 'lp', fs=250
 
@@ -268,12 +267,12 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     amp_p1 = 0.0
                 if marr_amp_p1[i] * 10.0 > amp_p1 > 0.0015:
-                # if marr_amp_p1[i] * 10.0 > amp_p1 > marr_amp_p1[i] * 0.01:  # 2.0 0.05   *0.14
+                    # if marr_amp_p1[i] * 10.0 > amp_p1 > marr_amp_p1[i] * 0.01:  # 2.0 0.05   *0.14
                     p1[i] = 1.0
                 else:
                     p1[i] = 0.0
 
-            # if mean_PR[i] < int(intervals[i] * 0.5):
+                # if mean_PR[i] < int(intervals[i] * 0.5):
 
                 fragment_l2_f = filtfilt(bl, al, fragment_l2)[6:-4]
                 ind_max2 = argrelmax(fragment_l2_f)[0]
@@ -288,7 +287,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     p2[i] = 0.0
 
-            # if mean_PR[i] < int(intervals[i] * 0.5):
+                # if mean_PR[i] < int(intervals[i] * 0.5):
 
                 fragment_l3_f = filtfilt(bl, al, fragment_l3)[6:-4]
                 ind_max3 = argrelmax(fragment_l3_f)[0]
@@ -303,40 +302,44 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
                 else:
                     p3[i] = 0.0
             # logging.info(f"amp_p1 = {amp_p1:.4f}, amp_p2 = {amp_p2:.4f}, amp_p3 = {amp_p3:.4f}")
-        # if i == 78:
-        #     p01.plot(fragment_l1, pen='g')
-        #     p01.plot(fragment_l2, pen='y')
-        #     p01.plot(fragment_l3, pen='c')
-        #     p01.plot(fragment_l1_f, pen='g')
-        #     p01.plot(fragment_l2_f, pen='y')
-        #     p01.plot(fragment_l3_f, pen='c')
-        #     p02.plot(lead1[r_pos[i] - 2000:r_pos[i] + 2000], pen='g')
-        #     p02.plot(lead2[r_pos[i] - 2000:r_pos[i] + 2000] - 2, pen='y')
-        #     p02.plot(lead3[r_pos[i] - 2000:r_pos[i] + 2000] - 4, pen='c')
-        #     print(p1[i - 4:i + 1])
-        #     print(p2[i - 4:i + 1])
-        #     print(p3[i - 4:i + 1])
-        sum_p1 = np.sum(p1[i - 4:i - 1]) + p1[i-1] * 2.0 + p1[i] * 3.0
-        sum_p2 = np.sum(p2[i - 4:i - 1]) + p2[i-1] * 2.0 + p2[i] * 3.0
-        sum_p3 = np.sum(p3[i - 4:i - 1]) + p3[i-1] * 2.0 + p3[i] * 3.0
+        if i == 14260:
+            # p01.plot(fragment_l1, pen='g')
+            # p01.plot(fragment_l2, pen='y')
+            # p01.plot(fragment_l3, pen='c')
+            # p01.plot(fragment_l1_f, pen='g')
+            # p01.plot(fragment_l2_f, pen='y')
+            # p01.plot(fragment_l3_f, pen='c')
+            p02.plot(lead1[r_pos[i] - 2000:r_pos[i] + 2000], pen='g')
+            p02.plot(lead2[r_pos[i] - 2000:r_pos[i] + 2000] - 2, pen='y')
+            p02.plot(lead3[r_pos[i] - 2000:r_pos[i] + 2000] - 4, pen='c')
+            print(p1[i - 4:i + 1])
+            print(p2[i - 4:i + 1])
+            print(p3[i - 4:i + 1])
         # sum_p1 = np.sum(p1[i - 4:i - 1]) + p1[i-1] * 2.0 + p1[i] * 3.0
         # sum_p2 = np.sum(p2[i - 4:i - 1]) + p2[i-1] * 2.0 + p2[i] * 3.0
         # sum_p3 = np.sum(p3[i - 4:i - 1]) + p3[i-1] * 2.0 + p3[i] * 3.0
+        sum_p1 = p1[i - 4] + p1[i - 3] * 1.5 + p1[i - 2] * 3.0 + p1[i - 1] * 1.5 + p1[i]
+        sum_p2 = p2[i - 4] + p2[i - 3] * 1.5 + p2[i - 2] * 3.0 + p2[i - 1] * 1.5 + p2[i]
+        sum_p3 = p3[i - 4] + p3[i - 3] * 1.5 + p3[i - 2] * 3.0 + p3[i - 1] * 1.5 + p3[i]
+        # sum_p1 = p1[i - 4] + p1[i - 3] * 1.5 + p1[i - 2] * 2.0 + p1[i - 1] * 1.5 + p1[i]
+        # sum_p2 = p2[i - 4] + p2[i - 3] * 1.5 + p2[i - 2] * 2.0 + p2[i - 1] * 1.5 + p2[i]
+        # sum_p3 = p3[i - 4] + p3[i - 3] * 1.5 + p3[i - 2] * 2.0 + p3[i - 1] * 1.5 + p3[i]
+
         if np.sum(fragment_l1) == 0.0:
             sum_p1 = (sum_p2 + sum_p3) / 2.0
         elif np.sum(fragment_l2) == 0.0:
             sum_p2 = (sum_p1 + sum_p3) / 2.0
         elif np.sum(fragment_l3) == 0.0:
             sum_p3 = (sum_p1 + sum_p2) / 2.0
-        elif ((sum_p1 < 4.5) and (sum_p2 > 4.5) and (sum_p3 > 4.5)) or (
-                (sum_p1 > 4.5) and (sum_p2 < 4.5) and (sum_p3 < 4.5)):
-            sum_p1 = (sum_p2 + sum_p3) / 2.0
-        elif ((sum_p2 < 4.5) and (sum_p1 > 4.5) and (sum_p3 > 4.5)) or (
-                (sum_p2 > 4.5) and (sum_p1 < 4.5) and (sum_p3 < 4.5)):
-            sum_p2 = (sum_p1 + sum_p3) / 2.0
-        elif ((sum_p3 < 4.5) and (sum_p1 > 4.5) and (sum_p2 > 4.5)) or (
-                (sum_p3 > 4.5) and (sum_p1 < 4.5) and (sum_p2 < 4.5)):
-            sum_p3 = (sum_p1 + sum_p2) / 2.0
+        # if ((sum_p1 < 4.5) and (sum_p2 > 4.5) and (sum_p3 > 4.5)) or (
+        #         (sum_p1 > 4.5) and (sum_p2 < 4.5) and (sum_p3 < 4.5)):
+        #     sum_p1 = (sum_p2 + sum_p3) / 2.0
+        # elif ((sum_p2 < 4.5) and (sum_p1 > 4.5) and (sum_p3 > 4.5)) or (
+        #         (sum_p2 > 4.5) and (sum_p1 < 4.5) and (sum_p3 < 4.5)):
+        #     sum_p2 = (sum_p1 + sum_p3) / 2.0
+        # elif ((sum_p3 < 4.5) and (sum_p1 > 4.5) and (sum_p2 > 4.5)) or (
+        #         (sum_p3 > 4.5) and (sum_p1 < 4.5) and (sum_p2 < 4.5)):
+        #     sum_p3 = (sum_p1 + sum_p2) / 2.0
         #     print(p1[i - 4:i + 1])
         #     print(p2[i - 4:i + 1])
         #     print(p3[i - 4:i + 1])
@@ -349,7 +352,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
         #     sum_p2 = (sum_p1 + sum_p3) / 2.0
         # elif np.sum(fragment_l3) == 0.0:
         #     sum_p3 = (sum_p1 + sum_p2) / 2.0
-        # elif ((sum_p1 < 2.5) and (sum_p2 > 2.5) and (sum_p3 > 2.5)) or (
+        # if ((sum_p1 < 2.5) and (sum_p2 > 2.5) and (sum_p3 > 2.5)) or (
         #         (sum_p1 > 2.5) and (sum_p2 < 2.5) and (sum_p3 < 2.5)):
         #     if sum_p1 < 5.0:
         #         sum_p1 = (sum_p2 + sum_p3) / 2.0
@@ -367,14 +370,16 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
         #     sum_buff += 8.0
         # elif (sum_p_i == 0.0):
         #     sum_buff -= 8.0
-            # if sum_buff < 0.0:
-            #     sum_buff = 0.0
-        sum_buff = 24.0 - sum_buff
+        # if sum_buff < 0.0:
+        #     sum_buff = 0.0
+        # sum_buff = 27.0 - sum_buff   # 24.0 - sum_buff
+        # sum_buff = 24.0 - sum_buff
         # if sum_buff > 20.0:
         #     sum_buff = 20.0
         # if sum_buff < 0.0:
         #     sum_buff = 0.0
-        out[i - 2] = sum_buff * 4.5
+        # out[i - 2] = sum_buff
+        out[i - 2] = sum_buff * 4.55
         # out[i - 2] = (20.0 - sum_buff) * 3.0  # (18.0 - sum_buff) * 5.0
         # a = 1
     # out = medfilt(out, 15)
@@ -389,6 +394,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, pr1, pr2, pr3, marr_amp_
     # out = truncate_win(out, 0.2, 30)
     # out = truncate_win(out, 0.2, 10)
     # out = truncate_win2(out, 0.8, 50)
+    out = -(out - np.max(out))
     return out
 
 
@@ -399,7 +405,7 @@ def main():
     lead2 = np.load(fdir + "/clean_lead2.npy")
     lead3 = np.load(fdir + "/clean_lead3.npy")
     # len_lead = lead1.size
-    # end_lead = int(len_lead * 0.98)
+    # end_lead = int(len_lead * 0.9)
     # lead1 = lead1[:end_lead]
     # lead2 = lead2[:end_lead]
     # lead3 = lead3[:end_lead]
@@ -423,10 +429,11 @@ def main():
     coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, pos_p1, pos_p2, pos_p3, mean_p1, mean_p2, mean_p3,
                    mean_PR)
     # p.plot(coef_p, pen='m')
+    # coef_p = medfilt(coef_p, 5)
     # coef_p = moving_average(coef_p, 31)
     coef_p = truncate_win2(coef_p, 0.8, 500)  # 0.9, 500
     coef_p = moving_average(coef_p, 31)
-    coef_p = truncate_win2(coef_p, 0.7, 400)
+    coef_p = truncate_win2(coef_p, 0.7, 300)
     # coef_p = moving_average(coef_p, 31)
     # coef_p = truncate_win2(coef_p, 0.5, 300)
     # coef_p = truncate_win2(coef_p, 0.4, 200)# 0.8, 300
@@ -450,10 +457,10 @@ def main():
     p.plot(coef_fibr, pen='c')
     e_coef_p = coef_p * coef_fibr * 1.0  # 0.3
     # p_count_coef = e_coef_p.size / e_coef_p[e_coef_p > cleen_fintervals].size
-    p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size + 0.5
+    p_count_coef = e_coef_p[e_coef_p > cleen_fintervals].size / e_coef_p.size
     # p_count_coef = np.exp(-(p_count_coef - 1.0)**2)
-    p.plot(e_coef_p, pen='b')
-    print(f"p_count_coef = {p_count_coef}")
+    # p.plot(e_coef_p, pen='b')
+    print(f"p_count_coef = {p_count_coef:.4f}")
     mean_coef_p = np.mean(e_coef_p)
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p])
     mean_coef_p2 = np.mean(e_coef_p[e_coef_p > mean_coef_p2])
@@ -486,36 +493,33 @@ def main():
     coef = mean_coef_p / mean_fintervals
     coef3 = mean_coef_p3 / mean_fintervals
     coef23 = mean_23 / mean_fintervals
-    print(f"coef2 = {coef2:.2f}, coef = {coef:.2f}, coef3 = {coef3:.2f}, coef23 = {coef23:.2f}")
-    # sum_coef = coef23 + coef
-    # sum_coef = abs(coef23 - coef)
-    # if sum_coef > 10.0:
-    #     sum_coef = 10.0
-    # sum_coef = (sum_coef)**0.5 * (p_count_coef * 10.0)**0.5 / 10.0
-    # print(f"sum_coef = {sum_coef:.2f}")
+    print(f"coef2 = {coef2:.2f}, coef23 = {coef23:.2f}, coef3 = {coef3:.2f}, coef = {coef:.2f}")
+
     if coef3 > 1.0:
         e_coef_p = truncate_ch(e_coef_p, 0.8)
-        norm_coef = p_count_coef
-        print(f"over = 2, 23, 3")
-    elif (coef2 < 1.0) and (p_count_coef == 0.5):
+        norm_coef = p_count_coef + 0.3
+        print(f"1 over = 2, 23, 3")
+    elif (coef2 < 1.0) and (p_count_coef == 0.0):
         norm_coef = 0.45
-        print(f"(p_count_coef == 0.5) under = 2, 23, 3")
-    elif (coef2 < 1.0) and (p_count_coef > 0.5):
-        norm_coef = 0.8
-        print(f"(p_count_coef > 0.5) under = 2, 23, 3")
-    # elif (10.0 > coef23 > 4.0) and (coef > 1.0) and (coef3 < 1.0):
-    #     norm_coef = p_count_coef - 0.15
-    #     print(f"Условие: (10.0 > coef23 > 4.0) and (coef > 1.0) and (coef3 < 1.0)")
+        print(f"2 (p_count_coef == 0.0) under = 2, 23, 3")
+    elif (coef2 < 1.0) and (p_count_coef > 0.0):
+        norm_coef = 0.64
+        print(f"3 (p_count_coef > 0.0) under = 2, 23, 3")
     elif (coef > 1.0) and (coef3 < 1.0):
-        norm_coef = (coef / 3.0)**0.5 * p_count_coef
-        print(f"Условие: (coef > 1.0) and (coef3 < 1.0)")
+        norm_coef = p_count_coef ** 0.5 + 0.3
+        if coef > coef23:
+            norm_coef = norm_coef * coef23 / coef
+        print(f"4 Условие: (coef > 1.0) and (coef3 < 1.0)")
+    elif (coef23 > 1.0) and (coef < 1.0):
+        norm_coef = p_count_coef ** 0.5 + 0.45
+        print(f"5 Условие: (coef23 > 1.0) and (coef < 1.0)")
     else:
-        norm_coef = p_count_coef
-        print(f"else: norm_coef = {p_count_coef}")
+        norm_coef = p_count_coef + 0.5
+        print(f"6 else: norm_coef = {norm_coef}")
 
-    print(f"norm_coef = {norm_coef}")
+    print(f"norm_coef = {norm_coef:.2f}")
     e_coef_p *= norm_coef
-    p.plot(e_coef_p, pen='r')
+    p.plot(e_coef_p[:int(len(e_coef_p) * 0.999)], pen='r')
     p.plot(mean_line, pen='w')
     p.plot(mean_line2, pen='w')
     p.plot(mean_line3, pen='w')
