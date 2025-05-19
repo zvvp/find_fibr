@@ -4,7 +4,7 @@ import pyqtgraph as pg
 import numpy as np
 from scipy.signal import filtfilt, medfilt, butter, savgol_filter, argrelmax
 from functions import (get_S, parse_B1_txt, get_number_of_peaks1, get_coef_fibr, del_V_S,
-                       moving_average, get_p2p, get_max_p, truncate_win2, truncate_ch, div_intervals)
+                       moving_average, get_max_p, truncate_win2, truncate_ch)
 from time import time
 
 

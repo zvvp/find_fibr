@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pyqtgraph as pg
 from scipy.signal import savgol_filter, iirpeak, lfilter, filtfilt, butter, medfilt
-from functions import get_number_of_peaks, get_offset, parse_B_txt
+from functions import parse_B_txt
 
 
 app = QApplication(sys.argv)
