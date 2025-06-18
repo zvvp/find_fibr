@@ -200,7 +200,7 @@ def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
     else:
         return 0
 
-def get_S1(fdir):
+def get_Q(fdir):
     try:
         os.remove(fdir + "/B1.txt")
     except FileNotFoundError:
@@ -214,22 +214,23 @@ def get_S1(fdir):
         lines = f.readlines()
     for i, line in enumerate(lines):
         if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
-            if (';N' in lines[i]):  # and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+            if (';N' in lines[i]) or (';S' in lines[i]):  # and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
                 periods = get_periods(lines[i - 2:i + 3])
                 tf = np.array(periods)
-                ref_t = np.array([tf[1], tf[1] * 0.8, tf[1] * 1.2, tf[1]])
-                ref_t0 = np.array([tf[1], tf[1] * 0.65, tf[1] * 0.45, tf[1]])   #np.array([tf[1], tf[1] * 0.65, tf[1] * 1.15, tf[1]])
-                ref_t1 = np.array([tf[1], tf[1] * 0.65, tf[1] * 1.1, tf[1] * 0.65])
-                ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.65, tf[1]])
+                ref_t = np.array([tf[1], tf[1] * 0.55, tf[1] * 1.5, tf[1]])
+                ref_t0 = np.array([tf[1], tf[1] * 0.55, tf[1], tf[1] * 0.55])
+                ref_t1 = np.array([tf[1], tf[1] * 1.5, tf[1] , tf[1] * 1.5])
+                # ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.65, tf[1]])
                 # ref_t4 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.5, tf[1]])
                 coef_cor = get_coef_cor(ref_t, tf[1:])
                 coef_cor0 = get_coef_cor(ref_t0, tf[1:])
                 coef_cor1 = get_coef_cor(ref_t1, tf[1:])
-                coef_cor3 = get_coef_cor(ref_t3, tf[1:])
+                # coef_cor3 = get_coef_cor(ref_t3, tf[1:])
                 # coef_cor4 = get_coef_cor(ref_t4, tf[1:])
-                trs = 0.98  # 0.98
-                if coef_cor > trs:
-                    lines[i] = lines[i].replace(';N', ';A')
+                arr_cor = np.array([coef_cor, coef_cor0, coef_cor1])
+                trs = 0.985  # 0.95
+                if np.max(arr_cor) > trs:
+                    lines[i] = lines[i].replace(';N', ';Q')
                     s += 1
                 # if ((coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs) or (
                 #         coef_cor3 > trs)) and (np.std(tf) > 50):  # or (coef_cor4 > trs):
@@ -337,13 +338,24 @@ def get_diff_loc(fragment):
 def del_V_S(intervals, chars):
     len_in = len(intervals)
     out = intervals.copy()
-    for i in np.arange(10, len_in - 10):
-        if ('V' in chars[i]) or ('S' in chars[i]) or ('A' in chars[i]) and (np.std(intervals[i - 2:i + 3]) > 60):
-            # mean_interval = np.median(intervals[i - 3:i + 4])
-            mean_interval = np.mean(intervals[i - 10:i + 10])
-            # mean_interval = np.mean([intervals[i - 3], intervals[i + 3]])
-            out[i:i + 2] = mean_interval + (
-                        intervals[i:i + 2] - mean_interval) * 0.02  # (intervals[i:i + 2] - mean_interval) * 0.02
+    diff_intervals = np.abs(intervals - np.roll(intervals, 1))[1:]
+    # mean_diff = np.mean(diff_intervals)
+    # print(f"mean_diff = {mean_diff:.2f}")
+    # diff_intervals = np.abs(diff_intervals - np.roll(diff_intervals, 1))[1:]
+    # mean_diff = np.mean(diff_intervals)
+    # print(f"mean_diff = {mean_diff:.2f}")
+    # diff_intervals = np.abs(diff_intervals - np.roll(diff_intervals, 1))[1:]
+    # mean_diff = np.mean(diff_intervals)
+    # print(f"mean_diff = {mean_diff:.2f}")
+    for i in np.arange(5, len_in - 5):
+        max_diff = np.max(diff_intervals[i - 2:i + 2])
+        if 'V' in chars[i] and (max_diff > 70.0):
+            mean_interval = np.mean(intervals[i - 5:i + 5])
+            out[i - 1:i + 2] = mean_interval + (intervals[i - 1:i + 2] - mean_interval) * 0.2
+            # bp = 0
+        elif 'Q' in chars[i] and (max_diff > 40.0):
+            mean_interval = np.mean(intervals[i - 5:i + 5])
+            out[i - 1:i + 2] = mean_interval + (intervals[i - 1:i + 2] - mean_interval) * 0.1
     return out
 
 
@@ -358,35 +370,26 @@ def get_scatter_coef(intervals):
     len_in = len(intervals)
     out = np.zeros(len_in)
     # out = np.ones(len_in) * start_value
-    for i in np.arange(35, len_in - 36):  # np.arange(15, len_in - 16)  (35, len_in - 36)
-        win_t = intervals[i - 35:i + 36].copy()
-        mean_win = np.mean(win_t)
+    for i in np.arange(25, len_in - 26):  # np.arange(15, len_in - 16)  (35, len_in - 36)
+        win_t = intervals[i - 25:i + 26].copy()
+        # sort_win_t = np.sort(win_t)[:-10]   # [:-12]
+        # mean_win = np.median(sort_win_t)
         diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
         diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
-        dt2_mean = np.median(diff_t2)
-        # dt2_mean = np.min((np.median(diff_t2), np.mean(diff_t2)))
-        # diff_t2[0] = dt2_mean
-        if diff_t2[diff_t2 > dt2_mean].size > 0:
-            threshold = np.median(diff_t2[diff_t2 > dt2_mean])
-        # if dt2_mean > 0.02:
-        #     threshold = np.mean(diff_t2)
-        # threshold = np.min((np.median(diff_t2[diff_t2 > dt2_mean]), np.mean(diff_t2[diff_t2 > dt2_mean])))
-        # threshold = np.mean(diff_t2[diff_t2 > threshold])
-            diff_t2 = diff_t2[diff_t2 < threshold]
-        # diff_t2[diff_t2 > threshold] = threshold
-        # diff_t2 = np.sort(diff_t2)[:-20]
-        # diff_t2 = np.sort(diff_t2)[6:-6]    #  [6:-6]
-        # out[i] = np.mean(diff_t2) * (1.5 + 100 / mean_win)  #  np.mean(diff_t2) * (0.8 + 350 / mean_win)
-        # mean_diff_t2 = np.mean(diff_t2[:])
-        mean_diff_t2 = diff_t2.std() * (1.5 + 200 / mean_win)
-        # out[i] = mean_diff_t2 * (1.25 + 200 / mean_win)
-        out[i] = mean_diff_t2 #* 200 / mean_win
-
+        # diff_t2 = np.abs(diff_t2 - np.roll(diff_t2, 1))[1:]
+        diff_t2 = np.sort(diff_t2)[:-12]   # [:-12]
+        dt2_mean = np.mean(diff_t2)
+        # if diff_t2[diff_t2 > dt2_mean].size > 0:
+        #     threshold = np.mean(diff_t2[diff_t2 > dt2_mean])
+        #     diff_t2 = diff_t2[diff_t2 < threshold]
+        # mean_diff_t2 = diff_t2.std() * (1.5 + 200 / mean_win)  # (1.9 + 210 / mean_win)
+        out[i] = dt2_mean #* (1 + 100.0 / mean_win) # dt2_mean * 175.0 / mean_win
         tempvar = 0
         out[i-2] = np.mean(out[i-5:i+1])
-    out[:35] = np.mean(out[30:50])
-    out[-36:] = np.mean(out[-50:-30])
-    # out = medfilt(out, 51)
+    # out[:35] = np.mean(out[30:50])
+    # out[-36:] = np.mean(out[-50:-30])
+    out[:26] = out[26]
+    out[-26:] = out[-26]
     return out
 
 def get_coef_fibr(intervals):
@@ -447,12 +450,23 @@ def get_ranges_fibr(fintervals, fcoef_fibr, r_pos):
 # @time_fun
 @njit
 def moving_average(data, window_size):
+    half_win = window_size // 2
     mean_data = np.mean(data[:window_size])
     out = np.ones(len(data)) * mean_data
-    for i in range(window_size // 2, len(data) - window_size // 2):
-        out[i] = np.mean(data[i - window_size // 2:i + window_size // 2])
+    for i in range(half_win, len(data) - half_win):
+        out[i] = np.mean(data[i - half_win:i + half_win])
+    out[:half_win] = out[half_win]
+    out[-half_win:] = out[-half_win]
     return out
 
+def step_moving_average(data, window_size):
+    out = np.ones(len(data)) * np.mean(data)
+    hf_w_size = window_size // 2
+    for i in range(hf_w_size, len(data) - hf_w_size, window_size):
+        buff = data[i - hf_w_size:i + hf_w_size]
+        mean_buff = np.mean(buff)
+        out[i - hf_w_size:i + hf_w_size] = mean_buff
+    return out
 
 # @time_fun
 @njit
@@ -473,6 +487,8 @@ def truncate_win2(ch, k, win_size):
             if len(buff[buff < under_mean]) > 0:
                 buff[buff < under_mean] = (buff[buff < under_mean] - under_mean) * k + under_mean
         out[i - half_win:i + half_win] = buff
+    out[:half_win] = out[half_win]
+    out[-half_win:] = out[-half_win]
     return out
 
 
@@ -493,12 +509,12 @@ def magnific_ch(ch, k):
     return out
 
 
-def get_n_threshold(ch):
+def get_under_threshold(ch):
     mean_ch = np.mean(ch)
     return np.mean(ch[ch < mean_ch])
 
 
-def get_p_threshold(ch):
+def get_over_threshold(ch):
     mean_ch = np.mean(ch)
     return np.mean(ch[ch > mean_ch])
 
@@ -536,6 +552,70 @@ def get_win_std(ch, len_win):
         win = ch[i - half_win:i + half_win].copy()
         out[i] = np.std(win)
     return out
+
+def get_p_amp(fragment, mean_amp_p):
+    pzub = 0.0
+    amp_pzub = 0.0
+    # amp_pzub1 = 0.0
+    # amp_pzub2 = 0.0
+    ind_max_loc = argrelmax(fragment)[0]
+    if ind_max_loc.size == 0:
+        return pzub, amp_pzub
+    ind_min_loc = argrelmin(fragment)[0]
+    ind_loc = np.concatenate((ind_max_loc, ind_min_loc))
+    ind_loc = np.sort(ind_loc)
+    loc_arr = fragment[ind_loc]
+    loc_arr = np.append(loc_arr, fragment[-1])
+    loc_arr = np.append(fragment[0], loc_arr)
+    diff_loc = loc_arr[1:] - loc_arr[:-1]
+    abs_diff_loc = np.abs(diff_loc)
+    if ind_max_loc.size == 1:
+        if ind_min_loc.size == 0:
+            amp_pzub = np.min(abs_diff_loc)
+        elif ind_min_loc.size == 1:
+            if ind_max_loc[0] < ind_min_loc[0]:
+                amp_pzub = np.min(abs_diff_loc[:2])
+            elif ind_max_loc[0] > ind_min_loc[0]:
+                amp_pzub = np.min(abs_diff_loc[1:3])
+        elif ind_min_loc.size == 2:
+            amp_pzub = np.min(abs_diff_loc[1:3])
+    elif ind_max_loc.size == 2:
+        if ind_min_loc.size == 1:
+            amp_pzub1 = np.min(abs_diff_loc[:2])
+            amp_pzub2 = np.min(abs_diff_loc[2:])
+        elif ind_min_loc.size == 2:
+            if ind_max_loc[0] < ind_min_loc[0]:
+                amp_pzub1 = np.min(abs_diff_loc[:2])
+                amp_pzub2 = np.min(abs_diff_loc[2:4])
+            elif ind_max_loc[0] > ind_min_loc[0]:
+                amp_pzub1 = np.min(abs_diff_loc[1:3])
+                amp_pzub2 = np.min(abs_diff_loc[3:])
+        elif ind_min_loc.size == 3:
+            amp_pzub1 = np.min(abs_diff_loc[1:3])
+            amp_pzub2 = np.min(abs_diff_loc[3:5])
+        max_amp = np.max([amp_pzub1, amp_pzub2])
+        min_amp = np.min([amp_pzub1, amp_pzub2])
+        div_amp = max_amp / min_amp
+        if div_amp > 10.0:
+            amp_pzub = max_amp
+    if (amp_pzub > mean_amp_p * 0.06) and (amp_pzub > 0.002):   # (amp_pzub > mean_amp_p * 0.05) and (amp_pzub > 0.001):
+        pzub = 1.0
+    return pzub, amp_pzub
+
+def win_sum_coef(arr_coef, clean_intervals, len_win):
+    out = np.zeros(len(arr_coef))
+    len_ch = len(arr_coef)
+    half_win = len_win // 2
+    diff_c_i = arr_coef - clean_intervals
+    diff_c_i[diff_c_i < 0.0] = 0.0
+    for i in range(half_win, len_ch - half_win):
+        win = diff_c_i[i - half_win:i + half_win].copy()
+        out[i] = np.sum(win)
+    out[:half_win] = out[half_win]
+    out[-half_win:] = out[-half_win - 1]
+    return out
+
+
 
 
 
