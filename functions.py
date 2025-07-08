@@ -119,8 +119,9 @@ def parse_B1_txt(fdir):
         mean_interval = np.mean(intervals)
         chars = np.array(chars)
         forms = np.array(forms)
-        intervals[intervals < 50] = mean_interval
-        intervals[intervals > 550] = mean_interval
+        # intervals[intervals < 40] = mean_interval + (intervals[intervals < 40] - mean_interval) * 0.7
+        # intervals[intervals > 350] = mean_interval + (intervals[intervals > 350] - mean_interval) * 0.3
+        intervals[intervals >= 500] = 500
         end_pos = int(len(r_pos) * 0.99)
     return r_pos[: end_pos], intervals[: end_pos], chars[: end_pos], forms[: end_pos]
     # return r_pos, intervals, chars, forms
@@ -217,9 +218,11 @@ def get_Q(fdir):
             if (';N' in lines[i]) or (';S' in lines[i]):  # and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
                 periods = get_periods(lines[i - 2:i + 3])
                 tf = np.array(periods)
-                ref_t = np.array([tf[1], tf[1] * 0.55, tf[1] * 1.5, tf[1]])
-                ref_t0 = np.array([tf[1], tf[1] * 0.55, tf[1], tf[1] * 0.55])
-                ref_t1 = np.array([tf[1], tf[1] * 1.5, tf[1] , tf[1] * 1.5])
+                diff_tf = np.diff(tf)
+                diff21 = diff_tf[2] - diff_tf[1]
+                ref_t = np.array([tf[1], tf[1] * 0.6, tf[1] * 1.3, tf[1]])
+                ref_t0 = np.array([tf[1], tf[1] * 0.6, tf[1], tf[1] * 0.6])
+                ref_t1 = np.array([tf[1], tf[1] * 1.35, tf[1] , tf[1] * 1.35])
                 # ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.65, tf[1]])
                 # ref_t4 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.5, tf[1]])
                 coef_cor = get_coef_cor(ref_t, tf[1:])
@@ -228,8 +231,8 @@ def get_Q(fdir):
                 # coef_cor3 = get_coef_cor(ref_t3, tf[1:])
                 # coef_cor4 = get_coef_cor(ref_t4, tf[1:])
                 arr_cor = np.array([coef_cor, coef_cor0, coef_cor1])
-                trs = 0.985  # 0.95
-                if np.max(arr_cor) > trs:
+                trs = 0.99  # 0.985
+                if (np.max(arr_cor) > trs) or (diff21 > 160):
                     lines[i] = lines[i].replace(';N', ';Q')
                     s += 1
                 # if ((coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs) or (
@@ -334,6 +337,34 @@ def get_diff_loc(fragment):
         else:
             return diff_loc
 
+def del_artifacts(intervals):
+    out = intervals.copy()
+    for i in np.arange(1, len(intervals) - 2):
+        if ((2.1 > (intervals[i-1] + intervals[i+2]) / (intervals[i] + intervals[i+1]) > 1.8) and
+                (abs(intervals[i-1] - intervals[i+2]) < 15)):
+            out[i] = intervals[i+2]
+            out[i+1] = intervals[i-1]
+        elif ((intervals[i] / ((intervals[i-1] + intervals[i+1]) / 2.0) > 1.9) and
+              (abs(intervals[i-1] - intervals[i+1]) < 10)):
+            out[i] = (intervals[i-1] + intervals[i+1]) / 2.0
+    return out
+
+def del_V_A(intervals, chars):
+    len_in = len(intervals)
+    out = intervals.copy()
+    out1 = del_artifacts(out)
+    diff_out1 = np.abs(out1 - np.roll(out1, 1))[1:]
+    for i in np.arange(5, len_in - 5):
+        max_diff = np.max(diff_out1[i:i + 2])
+        mean_diff = np.mean(abs(diff_out1[i - 1:i + 2]))
+        mean_interval = np.mean(out1[i - 5:i + 5])
+        if 'V' in chars[i] and 'V' in chars[i + 1] and (max_diff > 100.0):
+            out1[i] = mean_interval + (out1[i] - mean_interval) * 0.2
+        elif 'V' in chars[i] and not 'V' in chars[i + 1] and (max_diff > 40.0):
+            out1[i:i + 2] = mean_interval + (out1[i:i + 2] - mean_interval) * 0.2
+        elif 'Q' in chars[i] and (max_diff > 60.0):
+            out1[i:i + 2] = mean_interval + (out1[i:i + 2] - mean_interval) * 0.3
+    return out1
 
 def del_V_S(intervals, chars):
     len_in = len(intervals)
@@ -348,15 +379,103 @@ def del_V_S(intervals, chars):
     # mean_diff = np.mean(diff_intervals)
     # print(f"mean_diff = {mean_diff:.2f}")
     for i in np.arange(5, len_in - 5):
-        max_diff = np.max(diff_intervals[i - 2:i + 2])
-        if 'V' in chars[i] and (max_diff > 70.0):
-            mean_interval = np.mean(intervals[i - 5:i + 5])
-            out[i - 1:i + 2] = mean_interval + (intervals[i - 1:i + 2] - mean_interval) * 0.2
+        max_diff = np.max(diff_intervals[i:i + 2])
+        mean_diff = np.mean(abs(diff_intervals[i - 1:i + 2])) # i - 2:i + 3
+        mean_interval = np.mean(intervals[i - 5:i + 5])
+        if 'V' in chars[i] and 'V' in chars[i + 1] and (max_diff > 100.0):
+            out[i] = mean_interval + (intervals[i] - mean_interval) * 0.2
+        elif 'V' in chars[i] and not 'V' in chars[i + 1] and (max_diff > 40.0):
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.2
+        # if 'V' in chars[i] and (max_diff > 40.0):
+        #     out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.2
             # bp = 0
-        elif 'Q' in chars[i] and (max_diff > 40.0):
-            mean_interval = np.mean(intervals[i - 5:i + 5])
-            out[i - 1:i + 2] = mean_interval + (intervals[i - 1:i + 2] - mean_interval) * 0.1
+        elif 'Q' in chars[i] and (mean_diff > 30.0):
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.3
+    # out = del_artifacts(out)
     return out
+
+def get_diff_intervals(intervals, step):
+    diff_intervals = intervals.copy()
+    diff_intervals[step:] = np.abs(diff_intervals[step:] - diff_intervals[:-step])
+    diff_intervals[:step] = diff_intervals[step]
+    diff_intervals[-step:] = diff_intervals[-(step + 1)]
+    return diff_intervals
+
+def get_scatter_coef1(intervals):
+    len_in = len(intervals)
+    out = np.zeros(len_in)
+    diff1 = get_diff_intervals(intervals, 1)
+    diff2 = get_diff_intervals(intervals, 2)
+    diff3 = get_diff_intervals(intervals, 3)
+    diff4 = get_diff_intervals(intervals, 4)
+    for i in np.arange(30, len_in - 30):
+        win_diff1 = diff1[i - 30:i + 31]
+        win_diff2 = diff2[i - 30:i + 31]
+        win_diff3 = diff3[i - 30:i + 31]
+        win_diff4 = diff4[i - 30:i + 31]
+        mul_diff = (win_diff1 * win_diff2 + win_diff1 * win_diff3 + win_diff1 * win_diff4 + win_diff2 * win_diff3 +
+                    win_diff2 * win_diff4 + win_diff3 * win_diff4) ** 0.5
+
+        # mul_diff = (win_diff1 ** 2 + win_diff2 ** 2 + win_diff3 ** 2 + win_diff4 ** 2) ** 0.5  # ** 0.25 win_diff2 * win_diff3 * win_diff4) ** 0.5
+        # mul_diff = (win_diff1 * win_diff2 * win_diff3 * win_diff4) ** 0.5  # ** 0.25
+        sort_mul_diff = np.sort(mul_diff)#[:-15]
+        # out[i] = sort_mul_diff[30] * 0.28
+        out[i] = np.mean(sort_mul_diff[5:-5]) * 0.35
+        bp = 0
+        # out[i] = np.mean(sort_mul_diff[16:-24]) * 1.5
+        # out[i] = np.mean(sort_mul_diff[30:-10]) * 1.0
+    out[:30] = out[30]
+    out[-30:] = out[-31]
+    return out
+
+def count_trans(vec1, vec2):
+    if len(vec1) != len(vec2):
+        raise ValueError("Vectors must have the same length")
+    count = 0
+    for i in range(len(vec1) - 1):
+        if vec1[i] < vec2[i] and vec1[i + 1] > vec2[i + 1]:
+            count += 1
+    if vec1[0] > vec2[0]:
+        count += 1
+    return count
+
+def get_fibr_num_samples(e_coef_p, intervals):
+    start_ind = 0
+    stop_ind = 0
+    start_ind_arr = np.array([])
+    stop_ind_arr = np.array([])
+    if e_coef_p[0] > intervals[0]:
+        start_ind_arr = np.append(start_ind_arr, start_ind)
+        flag = True
+    else:
+        flag = False
+    min_size = 8
+    for i in np.arange(e_coef_p.size - 1):
+        if flag == False and e_coef_p[i] < intervals[i] and e_coef_p[i + 1] > intervals[i + 1]:
+            if i - stop_ind > min_size:
+                start_ind = i
+                start_ind_arr = np.append(start_ind_arr, start_ind)
+            else:
+                if stop_ind_arr.size > 0:
+                    stop_ind_arr = np.delete(stop_ind_arr, -1)
+            flag = True
+        elif flag == True and e_coef_p[i] > intervals[i] and e_coef_p[i + 1] < intervals[i + 1]:
+            if i - start_ind > min_size:
+                stop_ind = i
+                stop_ind_arr = np.append(stop_ind_arr, stop_ind)
+            else:
+                if start_ind_arr.size > 0:
+                    start_ind_arr = np.delete(start_ind_arr, -1)
+            flag = False
+        elif flag == True and i == e_coef_p.size - 2:
+            if i - start_ind > min_size:
+                stop_ind = i + 1
+                stop_ind_arr = np.append(stop_ind_arr, stop_ind)
+            else:
+                if start_ind_arr.size > 0:
+                    start_ind_arr = np.delete(start_ind_arr, -1)
+    diff_stop_start = stop_ind_arr - start_ind_arr
+    return start_ind_arr.astype(int), stop_ind_arr.astype(int), diff_stop_start.astype(int)
 
 
 def get_scatter_coef(intervals):
@@ -370,14 +489,17 @@ def get_scatter_coef(intervals):
     len_in = len(intervals)
     out = np.zeros(len_in)
     # out = np.ones(len_in) * start_value
-    for i in np.arange(25, len_in - 26):  # np.arange(15, len_in - 16)  (35, len_in - 36)
-        win_t = intervals[i - 25:i + 26].copy()
+    for i in np.arange(30, len_in - 31):  # np.arange(25, len_in - 26) 30 31
+        win_t = intervals[i - 30:i + 31].copy()
         # sort_win_t = np.sort(win_t)[:-10]   # [:-12]
         # mean_win = np.median(sort_win_t)
-        diff_t = np.abs(win_t - np.roll(win_t, 1))[1:]
-        diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))[1:]
-        # diff_t2 = np.abs(diff_t2 - np.roll(diff_t2, 1))[1:]
-        diff_t2 = np.sort(diff_t2)[:-12]   # [:-12]
+        diff_t = np.abs(win_t - np.roll(win_t, 1))
+        diff_t2 = np.abs(diff_t - np.roll(diff_t, 1))
+        diff_t2 = np.abs(diff_t2 - np.roll(diff_t2, 1))
+        start_ind = int(diff_t2.size // 2.2)
+        stop_ind = int(diff_t2.size - start_ind)
+        diff_t2 = np.sort(diff_t2)[start_ind:stop_ind]
+        # diff_t2 = np.sort(diff_t2)[:-12]   # [:-12]
         dt2_mean = np.mean(diff_t2)
         # if diff_t2[diff_t2 > dt2_mean].size > 0:
         #     threshold = np.mean(diff_t2[diff_t2 > dt2_mean])
@@ -385,11 +507,12 @@ def get_scatter_coef(intervals):
         # mean_diff_t2 = diff_t2.std() * (1.5 + 200 / mean_win)  # (1.9 + 210 / mean_win)
         out[i] = dt2_mean #* (1 + 100.0 / mean_win) # dt2_mean * 175.0 / mean_win
         tempvar = 0
-        out[i-2] = np.mean(out[i-5:i+1])
+        # out[i-2] = np.mean(out[i-5:i+1])
     # out[:35] = np.mean(out[30:50])
     # out[-36:] = np.mean(out[-50:-30])
-    out[:26] = out[26]
-    out[-26:] = out[-26]
+    out[:30] = out[30]
+    out[-30:] = out[-30]
+    # out[out < 0] = 0
     return out
 
 def get_coef_fibr(intervals):

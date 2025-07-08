@@ -4,7 +4,7 @@ import pyqtgraph as pg
 import numpy as np
 from scipy.signal import medfilt, butter, filtfilt, argrelmax
 from functions import parse_B1_txt, get_Q, moving_average, del_V_S, truncate_win2, interp_pr, truncate_ch, \
-    get_scatter_coef, win_sum_coef, step_moving_average, get_p_amp, get_over_threshold
+    get_scatter_coef1, step_moving_average, get_p_amp, get_fibr_num_samples, del_V_A, del_artifacts
 from time import time
 import logging
 
@@ -34,7 +34,7 @@ b, a = butter(2, 13.0, 'lp', fs=250)  # 3, 2.0, 'lp', fs=250
 bh, ah = butter(1, 0.2, 'hp', fs=250)  # 3, 1.0, 'hp', fs=250
 # print(f"bl: {bl}, al: {al}")
 # print(f"b: {b}, a: {a}")
-k = 47400
+k = 9670
 
 
 def time_fun(func):
@@ -257,6 +257,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     p2[:5] = 1.0
     p3 = np.zeros(len(r_pos), dtype=np.float32)
     p3[:5] = 1.0
+    # out = np.ones(len(r_pos), dtype=np.float32) * 7.0
     out = np.zeros(len(r_pos), dtype=np.float32)
     # buff = np.array([3, 3, 3])
     # mean_interval = (np.mean(intervals) + 400) * 0.06
@@ -265,8 +266,8 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     mean_PR2_copy = mean_PR2
     mean_PR3_copy = mean_PR3
     for i in range(4, len(r_pos)):  # range(4, len(r_pos))
-        start_range_interval = int(intervals[i] ** 0.5 * 3.5)  # int(intervals[i]**0.5 * 3.0)
-        stop_range_interval = int(intervals[i] ** 0.5 * 0.65)
+        start_range_interval = int(intervals[i] ** 0.5 * 3.7)  # int(intervals[i]**0.5 * 3.5)
+        stop_range_interval = int(intervals[i] ** 0.5 * 0.66)
         start_slice = r_pos[i] - start_range_interval
         end_slice = r_pos[i] - stop_range_interval
         start_slice1 = r_pos[i] - mean_PR1_copy - 15
@@ -281,19 +282,19 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         end_slice1 = r_pos[i] - mean_PR1_copy + int(mean_PR1_copy ** 0.5 * 3.0)  # +15
         end_slice2 = r_pos[i] - mean_PR2_copy + int(mean_PR2_copy ** 0.5 * 3.0)  # +15
         end_slice3 = r_pos[i] - mean_PR3_copy + int(mean_PR3_copy ** 0.5 * 3.0)  # +15
-        if mean_PR1 > intervals[i] // 3:
+        if mean_PR1 > intervals[i] * 0.36:  # // 3
             # if start_range_interval < mean_PR1:
             # fragment_l1 = lead1[start_slice1:end_slice1]
             fragment_l1 = lead1[start_slice:end_slice]
         else:
             fragment_l1 = lead1[start_slice1:end_slice1]
-        if mean_PR2 > intervals[i] // 3:
+        if mean_PR2 > intervals[i] * 0.36:
             # if start_range_interval < mean_PR2:
             # fragment_l2 = lead2[start_slice2:end_slice2]
             fragment_l2 = lead2[start_slice:end_slice]
         else:
             fragment_l2 = lead2[start_slice2:end_slice2]
-        if mean_PR3 > intervals[i] // 3:
+        if mean_PR3 > intervals[i] * 0.36:
             # if start_range_interval < mean_PR3:
             # fragment_l3 = lead3[start_slice3:end_slice3]
             fragment_l3 = lead3[start_slice:end_slice]
@@ -418,19 +419,19 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         #     sum_p2 = (sum_p1 + sum_p3) / 2.0
         # elif np.sum(fragment_l3) == 0.0:
         #     sum_p3 = (sum_p1 + sum_p2) / 2.0
-        # if ((sum_p1 < 2.5) and (sum_p2 > 2.5) and (sum_p3 > 2.5)) or (
-        #         (sum_p1 > 2.5) and (sum_p2 < 2.5) and (sum_p3 < 2.5)):
-        #     if sum_p1 < 5.0:
-        #         sum_p1 = (sum_p2 + sum_p3) / 2.0
-        # elif ((sum_p2 < 2.5) and (sum_p1 > 2.5) and (sum_p3 > 2.5)) or (
-        #         (sum_p2 > 2.5) and (sum_p1 < 2.5) and (sum_p3 < 2.5)):
-        #     if sum_p2 < 5.0:
-        #         sum_p2 = (sum_p1 + sum_p3) / 2.0
-        # elif ((sum_p3 < 2.5) and (sum_p1 > 2.5) and (sum_p2 > 2.5)) or (
-        #         (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
-        #     if sum_p3 < 5.0:
-        #         sum_p3 = (sum_p1 + sum_p2) / 2.0
-        sum_buff = sum_p1 + sum_p2 + sum_p3
+        if ((sum_p1 < 2.5) and (sum_p2 > 2.5) and (sum_p3 > 2.5)) or (
+                (sum_p1 > 2.5) and (sum_p2 < 2.5) and (sum_p3 < 2.5)):
+            if sum_p1 < 5.0:
+                sum_p1 = (sum_p2 + sum_p3) / 2.0
+        elif ((sum_p2 < 2.5) and (sum_p1 > 2.5) and (sum_p3 > 2.5)) or (
+                (sum_p2 > 2.5) and (sum_p1 < 2.5) and (sum_p3 < 2.5)):
+            if sum_p2 < 5.0:
+                sum_p2 = (sum_p1 + sum_p3) / 2.0
+        elif ((sum_p3 < 2.5) and (sum_p1 > 2.5) and (sum_p2 > 2.5)) or (
+                (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
+            if sum_p3 < 5.0:
+                sum_p3 = (sum_p1 + sum_p2) / 2.0
+        sum_buff = sum_p1 * sum_p2 * sum_p3 * 0.25  # 0.25
         # sum_p_i = p1[i] + p2[i] + p3[i]
         # if sum_p_i == 3.0:
         #     sum_buff += 8.0
@@ -448,9 +449,8 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         # win_t = intervals[i - 25:i + 26].copy()
         # sort_win_t = np.sort(win_t)[:-12]
         # mean_win = np.median(sort_win_t)
-        out[i - 2] = sum_buff #* 1.4
+        out[i - 2] = sum_buff
         # out[i] = sum_buff * 4.5
-        # out[i - 2] = (20.0 - sum_buff) * 3.0  # (18.0 - sum_buff) * 5.0
         bp1 = 1
     # out = medfilt(out, 15)
     # out = moving_average(out, 40)
@@ -466,6 +466,9 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     # out = truncate_win2(out, 0.8, 50)
     # out[-20:] = out[-20]
     out = -(out - np.max(out))
+    # out = (-(out - np.max(out)) + 0.5) * 3.3
+    out[:2] = out[2]
+    out[-2:] = out[-3]
     return out
 
 
@@ -483,8 +486,14 @@ def main():
     get_Q(fdir)
     r_pos, intervals, chars, forms = parse_B1_txt(fdir)
     # plot_select_p(lead1, lead2, lead3, intervals, r_pos, 44215)
-    # p.plot(intervals, pen="c")
+    p.plot(intervals, pen="b")
+    # fintervals = del_V_A(intervals, chars)
     fintervals = del_V_S(intervals, chars)
+    fintervals = del_artifacts(fintervals)
+    p.plot(fintervals, pen="m")
+    # mean_intervals = np.mean(fintervals)
+    # fintervals[fintervals < 75] = mean_intervals
+    # fintervals[fintervals > 370] = mean_intervals
     # fintervals = del_V_S(fintervals, chars)
     # fintervals = intervals
     # p.plot(fintervals, pen="m")
@@ -496,6 +505,7 @@ def main():
     clean_fintervals = step_moving_average(fintervals, 4)
     clean_fintervals = step_moving_average(clean_fintervals, 6)
     clean_fintervals = step_moving_average(clean_fintervals, 4)
+    clean_fintervals = moving_average(clean_fintervals, 12)
     p.plot(clean_fintervals, pen="g")
     # mean_fintervals = np.mean(clean_fintervals)
     # line_fintervals = np.ones(clean_fintervals.size) * mean_fintervals
@@ -506,34 +516,56 @@ def main():
                                                                                     r_pos, chars, inds_min)
     coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1,
                    mean_PR2, mean_PR3)
-    coef_p = truncate_win2(coef_p, 0.85, 500)  # 0.9, 500
-    coef_p = moving_average(coef_p, 31)
-    coef_p = truncate_win2(coef_p, 0.75, 300)
+    # coef_p = truncate_win2(coef_p, 0.85, 500)  # 0.9, 500
+    # coef_p = moving_average(coef_p, 31)
+    # coef_p = truncate_win2(coef_p, 0.75, 300)
+    # p.plot(coef_p, pen=(60, 180, 60, 140))
+    # coef_p = step_moving_average(coef_p, 6)
+    coef_p = step_moving_average(coef_p, 12)
+    coef_p = step_moving_average(coef_p, 8)
+    coef_p = moving_average(coef_p, 12)
     # p.plot(coef_p, pen='y')
-    coef_fibr = get_scatter_coef(fintervals)
-    coef_fibr = truncate_win2(coef_fibr, 0.8, 500)
-    coef_fibr = truncate_win2(coef_fibr, 0.7, 300)
+    coef_p = truncate_win2(coef_p, 0.85, 160)
+    coef_p = truncate_win2(coef_p, 0.75, 80)
+    p.plot(coef_p, pen='y')
+
+    coef_fibr = get_scatter_coef1(fintervals)
+    coef_fibr = step_moving_average(coef_fibr, 12)
+    coef_fibr = step_moving_average(coef_fibr, 8)
+    coef_fibr = moving_average(coef_fibr, 12)
     # p.plot(coef_fibr, pen='c')
-    # e_coef_p = (3.1 * coef_p + 0.4 * coef_fibr) ** 2.0 * (0.5 + 100 / clean_fintervals)
-    # p.plot(coef_p, pen='y')
-    # m = 1.0
-    n_coef_p = (coef_p + 0.0) * 1.0
-    n_coef_p[n_coef_p < 0.0] = 0.0
-    p.plot(n_coef_p, pen='y')
-    # p.plot(coef_fibr, pen='c')
-    n_coef_fibr = (coef_fibr + 1.5) * 1.0
-    n_coef_fibr[n_coef_fibr < 0.0] = 0.0
-    p.plot(n_coef_fibr, pen='c')
-    n_mul_p_f = n_coef_p * n_coef_fibr * 3.0
-    p.plot(n_mul_p_f, pen='m')
-    n_sum_p_f = 0.1 * (1.8 * (n_coef_p + 0.0) + 0.15 * (n_coef_fibr - 0.0)) ** 2.0
-    p.plot(n_sum_p_f, pen='w')
-    n_intervals = clean_fintervals * 0.05
-    e_coef_p = (n_sum_p_f + n_mul_p_f - n_intervals + 11.0) * 3.0
-    e_coef_p[e_coef_p < 0.0] = 0.0
-    # e_coef_p = (0.2 * (n_coef_p + n_coef_fibr) ** 2.0 + 5.0 * coef_p * coef_fibr) #* (0.5 + 100 / clean_fintervals)
-    p_count_coef = round(e_coef_p[e_coef_p > clean_fintervals].size / e_coef_p.size, 6)
-    print(f"p_count_coef = {p_count_coef:.6f}")
+    coef_fibr = truncate_win2(coef_fibr, 0.85, 160)
+    coef_fibr = truncate_win2(coef_fibr, 0.75, 80)
+    p.plot(coef_fibr, pen='c')
+    # print(f"div = {coef_fibr[71090] / coef_fibr[46420]:.2f}")
+    # coef_p = coef_p - 0.0
+    # coef_p[coef_p < 0.0] = 0.0
+    # coef_fibr = coef_fibr - 0.5
+    # coef_fibr[coef_fibr < 0.0] = 0.0
+    # e_coef_p = coef_p * coef_fibr
+    e_coef_p = coef_p * coef_fibr * (0.5 + 100 / clean_fintervals)
+    # e_coef_p[e_coef_p < 0.0] = 0.0
+    e_coef_p = step_moving_average(e_coef_p, 12)
+    e_coef_p = step_moving_average(e_coef_p, 8)
+    e_coef_p = moving_average(e_coef_p, 12)
+    # p.plot(e_coef_p, pen='w')
+    e_coef_p = truncate_win2(e_coef_p, 0.85, 160)
+    e_coef_p = truncate_win2(e_coef_p, 0.75, 80)
+    fibr_num_sampl = e_coef_p[e_coef_p > clean_fintervals].size
+    # print(f"fibr_num_sampl = {fibr_num_sampl}")
+    # count_trans_coef = count_trans(e_coef_p, clean_fintervals)
+    # print(f"count_trans_coef = {count_trans_coef}")
+    # if fibr_num_sampl / e_coef_p.size > 0.9:
+    #     e_coef_p = truncate_ch(e_coef_p, 0.75)
+    start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals)
+    print(f"start_ind_arr = {start_ind_arr}")
+    print(f"stop_ind_arr = {stop_ind_arr}")
+    print(f"diff_stop_start = {diff_stop_start}")
+    print(f"number of fibr = {diff_stop_start.size}")
+    s_over =  np.sum(e_coef_p[e_coef_p > clean_fintervals] - clean_fintervals[e_coef_p > clean_fintervals])
+    print(f"s_over = {s_over:.1f}")
+    s_under = np.sum(clean_fintervals[e_coef_p < clean_fintervals] - e_coef_p[e_coef_p < clean_fintervals])
+    print(f"s_under = {s_under:.1f}")
 
     norm_coef = 1.0
     print(f"norm_coef = {norm_coef:.2f}")
