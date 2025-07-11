@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QFileDialog, QApplication 
 import sys
+from functions import parse_B1_txt
 
 
 def get_time_qrs(addr, fname):  
@@ -46,10 +47,13 @@ def get_time_qrs(addr, fname):
 if __name__ == "__main__":
 
     app = QApplication(sys.argv)
+    fdir = QFileDialog.getExistingDirectory(parent=None, directory="C:/EcgVar")
+    print(fdir)
+    r_pos, intervals, chars, forms = parse_B1_txt(fdir)
 
     fname = QFileDialog.getOpenFileName()[0]
 
-    get_time_qrs(29079, fname)
+    get_time_qrs(r_pos[82600], fname)
 
     sys.exit()
 
