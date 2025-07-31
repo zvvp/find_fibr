@@ -443,7 +443,7 @@ def count_trans(vec1, vec2):
         count += 1
     return count
 
-def get_fibr_num_samples(e_coef_p, intervals):
+def get_fibr_num_samples(e_coef_p, intervals, mask_pseudo_fibr):
     start_ind = 0
     stop_ind = 0
     start_ind_arr = np.array([])
@@ -453,9 +453,9 @@ def get_fibr_num_samples(e_coef_p, intervals):
         flag = True
     else:
         flag = False
-    min_size = 1
+    min_size = 4
     for i in np.arange(e_coef_p.size - 1):
-        if flag == False and e_coef_p[i] < intervals[i] and e_coef_p[i + 1] > intervals[i + 1]:
+        if flag == False and e_coef_p[i] < intervals[i] and e_coef_p[i + 1] > intervals[i + 1] and mask_pseudo_fibr[i] == 1:
             if i - stop_ind > min_size:
                 start_ind = i
                 start_ind_arr = np.append(start_ind_arr, start_ind)
@@ -463,7 +463,7 @@ def get_fibr_num_samples(e_coef_p, intervals):
                 if stop_ind_arr.size > 0:
                     stop_ind_arr = np.delete(stop_ind_arr, -1)
             flag = True
-        elif flag == True and e_coef_p[i] > intervals[i] and e_coef_p[i + 1] < intervals[i + 1]:
+        elif flag == True and e_coef_p[i] > intervals[i] and e_coef_p[i + 1] < intervals[i + 1] and mask_pseudo_fibr[i] == 1:
             if i - start_ind > min_size:
                 stop_ind = i
                 stop_ind_arr = np.append(stop_ind_arr, stop_ind)
@@ -803,9 +803,9 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # pos_p1 = 0
     # pos_p2 = 0
     # pos_p3 = 0
-    presence_PR1 = np.zeros(r_pos.size, dtype=int)
-    presence_PR2 = np.zeros(r_pos.size, dtype=int)
-    presence_PR3 = np.zeros(r_pos.size, dtype=int)
+    # presence_PR1 = np.zeros(r_pos.size, dtype=int)
+    # presence_PR2 = np.zeros(r_pos.size, dtype=int)
+    # presence_PR3 = np.zeros(r_pos.size, dtype=int)
     intervals_PR1 = np.array([], dtype=int)
     intervals_PR2 = np.array([], dtype=int)
     intervals_PR3 = np.array([], dtype=int)
@@ -896,12 +896,12 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # if intervals_PR3.size > 351:
     #     intervals_PR3 = moving_average(intervals_PR3, 351)
 
-    presence_PR1[inds_PR1] = intervals_PR1
-    presence_PR2[inds_PR2] = intervals_PR2
-    presence_PR3[inds_PR3] = intervals_PR3
-    presence_PR1 = interp_pr(presence_PR1)
-    presence_PR2 = interp_pr(presence_PR2)
-    presence_PR3 = interp_pr(presence_PR3)
+    # presence_PR1[inds_PR1] = intervals_PR1
+    # presence_PR2[inds_PR2] = intervals_PR2
+    # presence_PR3[inds_PR3] = intervals_PR3
+    # presence_PR1 = interp_pr(presence_PR1)
+    # presence_PR2 = interp_pr(presence_PR2)
+    # presence_PR3 = interp_pr(presence_PR3)
     # presence_PR = np.array([presence_PR1], [presence_PR2], [presence_PR3])
     # presence_PR = np.mean(presence_PR)
     # presence_PR = presence_PR.astype(int)
@@ -1044,23 +1044,23 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
 
             # logging.info(f"amp_p1 = {amp_p1:.4f}, amp_p2 = {amp_p2:.4f}, amp_p3 = {amp_p3:.4f}")
         if i == k:
-            app = QApplication(sys.argv)
-            p01 = pg.plot()
-            p01.showGrid(x=True, y=True)
-            p01.setTitle('p01')
-            p02 = pg.plot()
-            p02.showGrid(x=True, y=True)
-            p02.setTitle('p02')
-            p01.plot(fragment_l1, pen='g')
-            p01.plot(fragment_l2, pen='y')
-            p01.plot(fragment_l3, pen='c')
-            p01.plot(fragment_l1_f - 0.2, pen='g')
-            p01.plot(fragment_l2_f - 0.2, pen='y')
-            p01.plot(fragment_l3_f - 0.2, pen='c')
-            p02.plot(lead1[r_pos[i] - 5000:r_pos[i] + 5000], pen='g')
-            p02.plot(lead2[r_pos[i] - 5000:r_pos[i] + 5000] - 2, pen='y')
-            p02.plot(lead3[r_pos[i] - 5000:r_pos[i] + 5000] - 4, pen='c')
-            sys.exit(app.exec())
+            # app = QApplication(sys.argv)
+            # p01 = pg.plot()
+            # p01.showGrid(x=True, y=True)
+            # p01.setTitle('p01')
+            # p02 = pg.plot()
+            # p02.showGrid(x=True, y=True)
+            # p02.setTitle('p02')
+            # p01.plot(fragment_l1, pen='g')
+            # p01.plot(fragment_l2, pen='y')
+            # p01.plot(fragment_l3, pen='c')
+            # p01.plot(fragment_l1_f - 0.2, pen='g')
+            # p01.plot(fragment_l2_f - 0.2, pen='y')
+            # p01.plot(fragment_l3_f - 0.2, pen='c')
+            # p02.plot(lead1[r_pos[i] - 5000:r_pos[i] + 5000], pen='g')
+            # p02.plot(lead2[r_pos[i] - 5000:r_pos[i] + 5000] - 2, pen='y')
+            # p02.plot(lead3[r_pos[i] - 5000:r_pos[i] + 5000] - 4, pen='c')
+            # sys.exit(app.exec())
             print(f"i = {i}")
             print(p1[i - 4:i + 1])
             print(p2[i - 4:i + 1])

@@ -68,17 +68,36 @@ def main():
     lead1 = np.load(fdir + "/clean_lead1.npy")
     lead2 = np.load(fdir + "/clean_lead2.npy")
     lead3 = np.load(fdir + "/clean_lead3.npy")
-    mask_pseudo_fibr = np.load(fdir + '/mask_pseudo_fibr.npy')
-    p.plot(mask_pseudo_fibr, pen="w")
-    get_Q(fdir)
-    r_pos, intervals, chars, forms = parse_B1_txt(fdir)
+    # get_Q(fdir)
+    try:
+        r_pos = np.load(fdir + "/r_pos.npy")
+        intervals = np.load(fdir + "/intervals.npy")
+        chars = np.load(fdir + "/chars.npy")
+        forms = np.load(fdir + "/forms.npy")
+    except FileNotFoundError:
+        get_Q(fdir)
+        r_pos, intervals, chars, forms = parse_B1_txt(fdir)
+        np.save(fdir + "/r_pos.npy", r_pos)
+        np.save(fdir + "/intervals.npy", intervals)
+        np.save(fdir + "/chars.npy", chars)
+        np.save(fdir + "/forms.npy", forms)
+
+    try:
+        mask_pseudo_fibr = np.load(fdir + '/mask_pseudo_fibr.npy')
+        print(f"mask == 1: {mask_pseudo_fibr[mask_pseudo_fibr == 1].size}  mask == 0: {mask_pseudo_fibr[mask_pseudo_fibr == 0].size}")
+        p.plot(mask_pseudo_fibr * 10 - 12, pen="w")
+    except FileNotFoundError:
+        mask_pseudo_fibr = np.ones(intervals.size)
+        np.save(fdir + '/mask_pseudo_fibr.npy', mask_pseudo_fibr)
+    # r_pos, intervals, chars, forms = parse_B1_txt(fdir)
     plot_fragment_ecg(lead1, lead2, lead3, r_pos, k, 5000, ind_plot=1)
-    plot_fragment_ecg(lead1, lead2, lead3, r_pos, 29560, 5000, ind_plot=2)
-    p.plot(intervals, pen="b")
-    # fintervals = del_V_A(intervals, chars)
-    fintervals = del_V_S(intervals, chars)
-    fintervals = del_artifacts(fintervals, intervals)
-    p.plot(fintervals, pen="m")
+    try:
+        fintervals = np.load(fdir + "/fintervals.npy")
+    except FileNotFoundError:
+        fintervals = del_V_S(intervals, chars)
+        fintervals = del_artifacts(fintervals, intervals)
+        np.save(fdir + "/fintervals.npy", fintervals)
+    # p.plot(fintervals, pen="m")
     # mean_intervals = np.mean(fintervals)
     # fintervals[fintervals < 75] = mean_intervals
     # fintervals[fintervals > 370] = mean_intervals
@@ -90,28 +109,36 @@ def main():
     # clean_fintervals = m_fintervals + (fintervals - m_fintervals) * 0.2
     # clean_fintervals = m_fintervals #+ (np.abs(fintervals - m_fintervals))**0.5 * 0.2 * np.sign(fintervals - m_fintervals)
     # clean_fintervals = step_moving_average(fintervals, 6)
-    clean_fintervals = step_moving_average(fintervals, 4)
-    clean_fintervals = step_moving_average(clean_fintervals, 6)
-    clean_fintervals = step_moving_average(clean_fintervals, 4)
-    clean_fintervals = moving_average(clean_fintervals, 12)
+    try:
+        clean_fintervals = np.load(fdir + "/clean_fintervals.npy")
+    except FileNotFoundError:
+        clean_fintervals = step_moving_average(fintervals, 4)
+        clean_fintervals = step_moving_average(clean_fintervals, 6)
+        clean_fintervals = step_moving_average(clean_fintervals, 4)
+        clean_fintervals = moving_average(clean_fintervals, 12)
+        np.save(fdir + "/clean_fintervals.npy", clean_fintervals)
+    p.plot(intervals, pen=(90, 90, 210))
+    # p.plot(fintervals, pen="m")
     p.plot(clean_fintervals, pen="g")
 
-    inds_min = get_inds_min_diff(intervals)
-    mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2, mean_PR3 = get_p_pos(lead1, lead2, lead3, intervals,
+    try:
+        coef_p = np.load(fdir + "/coef_p.npy")
+    except FileNotFoundError:
+        inds_min = get_inds_min_diff(intervals)
+        mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2, mean_PR3 = get_p_pos(lead1, lead2, lead3, intervals,
                                                                                     r_pos, chars, inds_min)
-    coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1,
-                   mean_PR2, mean_PR3)
-    coef_p *= mask_pseudo_fibr
-    coef_p = step_moving_average(coef_p, 12)
-    coef_p = step_moving_average(coef_p, 8)
-    coef_p = moving_average(coef_p, 12)
-    # p.plot(coef_p, pen='y')
-    coef_p = truncate_win2(coef_p, 0.85, 160)
-    coef_p = truncate_win2(coef_p, 0.75, 80)
+        coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1,
+                       mean_PR2, mean_PR3)
+        coef_p = step_moving_average(coef_p, 12)
+        coef_p = step_moving_average(coef_p, 8)
+        coef_p = moving_average(coef_p, 12)
+        coef_p = truncate_win2(coef_p, 0.85, 160)
+        coef_p = truncate_win2(coef_p, 0.75, 80)
+        np.save(fdir + "/coef_p.npy", coef_p)
     p.plot(coef_p, pen='y')
 
     coef_fibr = get_scatter_coef1(fintervals)
-    coef_fibr *= mask_pseudo_fibr
+    # coef_fibr *= mask_pseudo_fibr
     coef_fibr = step_moving_average(coef_fibr, 12)
     coef_fibr = step_moving_average(coef_fibr, 8)
     coef_fibr = moving_average(coef_fibr, 12)
@@ -139,11 +166,11 @@ def main():
     # print(f"count_trans_coef = {count_trans_coef}")
     # if fibr_num_sampl / e_coef_p.size > 0.9:
     #     e_coef_p = truncate_ch(e_coef_p, 0.75)
-    start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals)
+    start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals, mask_pseudo_fibr)
     print(f"start_ind_arr = {start_ind_arr}")
     print(f"stop_ind_arr = {stop_ind_arr}")
     print(f"diff_stop_start = {diff_stop_start}")
-    print(f"number of fibr = {diff_stop_start.size}")
+    print(f"Количество эпизодов фибрилляции: = {diff_stop_start.size}")
     s_over =  np.sum(e_coef_p[e_coef_p > clean_fintervals] - clean_fintervals[e_coef_p > clean_fintervals])
     print(f"s_over = {s_over:.1f}")
     s_under = np.sum(clean_fintervals[e_coef_p < clean_fintervals] - e_coef_p[e_coef_p < clean_fintervals])
