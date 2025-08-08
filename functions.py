@@ -453,7 +453,7 @@ def get_fibr_num_samples(e_coef_p, intervals, mask_pseudo_fibr):
         flag = True
     else:
         flag = False
-    min_size = 4
+    min_size = 22
     for i in np.arange(e_coef_p.size - 1):
         if flag == False and e_coef_p[i] < intervals[i] and e_coef_p[i + 1] > intervals[i + 1] and mask_pseudo_fibr[i] == 1:
             if i - stop_ind > min_size:
@@ -1167,6 +1167,94 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     out[:2] = out[2]
     out[-2:] = out[-3]
     return out
+
+def save_F_txt():
+    file_ecg_name = QFileDialog.getOpenFileName()[0]
+    print(file_ecg_name)
+    size = (os.path.getsize(file_ecg_name) - 1023) // 6
+    time = get_time_from_samples(size)
+    h = time[0] * 24 + time[1]
+    total_time = f"Длина записи {h}:{time[2]}:{time[3]}\n"
+    start_time = get_start_time(file_ecg_name)
+    text = "\n"
+    text += f"{file_ecg_name}\n\n"
+    text += f"Начало записи {start_time[0]}:{start_time[1]}:{start_time[2]}\n\n"
+    fdir = QFileDialog.getExistingDirectory(parent=None, directory="C:/EcgVar")
+    try:
+        start_ind_arr = np.load(fdir + "/start_ind_arr.npy")
+        stop_ind_arr = np.load(fdir + "/stop_ind_arr.npy")
+        diff_stop_start = np.load(fdir + "/diff_stop_start.npy")
+        r_pos = np.load(fdir + "/r_pos.npy")
+        # print(start_ind_arr)
+        # print(stop_ind_arr)
+        # print(diff_stop_start)
+    except FileNotFoundError:
+        print("Файлы start_ind_arr.npy, stop_ind_arr.npy и diff_stop_start.npy не найдены")
+    len_f = len(start_ind_arr)
+    sum_time = 0
+    for i in range(len_f):
+        time_start = get_time_from_samples(get_addr_qrs(r_pos[start_ind_arr[i]], start_time[3]))
+        time_stop = get_time_from_samples(get_addr_qrs(r_pos[stop_ind_arr[i]], start_time[3]))
+        diff = int(r_pos[stop_ind_arr[i]] - r_pos[start_ind_arr[i]])
+        sum_time += diff
+        time_diff = get_time_from_samples(diff)
+        diff_h = time_diff[0] * 24 + time_diff[1]
+        text += f"{time_start[1]}:{time_start[2]}:{time_start[3]}  {time_stop[1]}:{time_stop[2]}:{time_stop[3]}  (длит. эпизода {diff_h}:{time_diff[2]}:{time_diff[3]})\n"
+        # print(f"{time_start[1]:02d}:{time_start[2]:02d}:{time_start[3]:02d}     {time_stop[1]:02d}:{time_stop[2]:02d}:{time_stop[3]:02d}  (длит. эпизода {diff_h}:{time_diff[2]}:{time_diff[3]})\n")
+    sum_fibr_time = get_time_from_samples(sum_time)
+    sum_h = sum_fibr_time[0] * 24 + sum_fibr_time[1]
+    text += f"\nВсего эпизодов {len_f}, суммарное время фибрилляции {sum_h}:{sum_fibr_time[2]}:{sum_fibr_time[3]}\n\n"
+    text += total_time
+    with open(fdir + "/F.txt", "w") as f:
+        for i, line in enumerate(text):
+            f.write(line)
+
+
+
+    print(total_time)
+
+def get_time_from_samples(sample_count):
+    s = int(sample_count * 0.004)
+    m = s // 60
+    s = s % 60
+
+    h = m // 60
+    m = m % 60
+
+    d = h // 24
+    h = h % 24
+    # return f"{d:02d} день {h:02d}:{m:02d}:{s:02d}"
+    return d, h, m, s
+
+def get_start_time(fname):
+    with open(fname, "rb") as f:
+        f.seek(151)
+        dlmt = f.read(1)
+        if dlmt == b":":
+            f.seek(150)
+            start_h = int(f.read(1))
+            f.seek(152)
+            start_m = int(f.read(2))
+            f.seek(155)
+            start_s = int(f.read(2))
+        else:
+            f.seek(150)
+            start_h = int(f.read(2))
+            f.seek(153)
+            start_m = int(f.read(2))
+            f.seek(156)
+            start_s = int(f.read(2))
+    start_addr = ((start_h * 60 + start_m) * 60 + start_s) * 250
+    return start_h, start_m, start_s, start_addr
+
+def get_addr_qrs(addr, start_addr):
+    return addr + start_addr
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    save_F_txt()
+    # sys.exit(app.exec())
+    sys.exit()
 
 
 

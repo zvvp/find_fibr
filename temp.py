@@ -166,15 +166,23 @@ def main():
     # print(f"count_trans_coef = {count_trans_coef}")
     # if fibr_num_sampl / e_coef_p.size > 0.9:
     #     e_coef_p = truncate_ch(e_coef_p, 0.75)
-    start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals, mask_pseudo_fibr)
-    print(f"start_ind_arr = {start_ind_arr}")
-    print(f"stop_ind_arr = {stop_ind_arr}")
-    print(f"diff_stop_start = {diff_stop_start}")
-    print(f"Количество эпизодов фибрилляции: = {diff_stop_start.size}")
-    s_over =  np.sum(e_coef_p[e_coef_p > clean_fintervals] - clean_fintervals[e_coef_p > clean_fintervals])
-    print(f"s_over = {s_over:.1f}")
-    s_under = np.sum(clean_fintervals[e_coef_p < clean_fintervals] - e_coef_p[e_coef_p < clean_fintervals])
-    print(f"s_under = {s_under:.1f}")
+    try:
+        start_ind_arr = np.load(fdir + "/start_ind_arr.npy")
+        stop_ind_arr = np.load(fdir + "/stop_ind_arr.npy")
+        diff_stop_start = np.load(fdir + "/diff_stop_start.npy")
+    except FileNotFoundError:
+        start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals, mask_pseudo_fibr)
+        np.save(fdir + "/start_ind_arr.npy", start_ind_arr)
+        np.save(fdir + "/stop_ind_arr.npy", stop_ind_arr)
+        np.save(fdir + "/diff_stop_start.npy", diff_stop_start)
+        # print(f"start_ind_arr = {start_ind_arr}")
+        # print(f"stop_ind_arr = {stop_ind_arr}")
+        # print(f"diff_stop_start = {diff_stop_start}")
+        print(f"Количество эпизодов фибрилляции: = {diff_stop_start.size}")
+    # s_over =  np.sum(e_coef_p[e_coef_p > clean_fintervals] - clean_fintervals[e_coef_p > clean_fintervals])
+    # print(f"s_over = {s_over:.1f}")
+    # s_under = np.sum(clean_fintervals[e_coef_p < clean_fintervals] - e_coef_p[e_coef_p < clean_fintervals])
+    # print(f"s_under = {s_under:.1f}")
 
     norm_coef = 1.0
     print(f"norm_coef = {norm_coef:.2f}")

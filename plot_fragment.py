@@ -17,7 +17,7 @@ lead3 = np.load(fdir + "/clean_lead3.npy")
 
 try:
     r_pos = np.load(fdir + "/r_pos.npy")
-    k = 18980
+    k = 61000
     p.plot(lead1[r_pos[k]-2000:r_pos[k]+2000])
     p.plot(lead2[r_pos[k]-2000:r_pos[k]+2000]-2)
     p.plot(lead3[r_pos[k]-2000:r_pos[k]+2000]-4)
