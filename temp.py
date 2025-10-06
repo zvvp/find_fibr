@@ -3,8 +3,8 @@ import sys
 import pyqtgraph as pg
 import numpy as np
 from scipy.signal import medfilt, butter, filtfilt, argrelmax
-from functions import parse_B1_txt, get_Q, moving_average, del_V_S, truncate_win2, get_scatter_coef1, \
-    step_moving_average, get_fibr_num_samples, del_artifacts, get_inds_min_diff, get_p_pos, get_P, k
+from functions import parse_B1_txt, get_Q, moving_average, del_V_S, truncate_win2, get_disp_coef1, \
+    step_moving_average, get_fibr_num_samples, del_artifacts, get_inds_min_diff, get_p_pos, get_P, k, plot_select_p
 from time import time
 import logging
 
@@ -37,20 +37,12 @@ p01.setTitle('p01')
 p02 = pg.plot()
 p02.showGrid(x=True, y=True)
 p02.setTitle('p02')
-# # p03 = pg.plot()
-# # p03.showGrid(x=True, y=True)
-# # p03.setTitle('p03')
-# p04 = pg.plot()
-# p04.showGrid(x=True, y=True)
-# p04.setTitle('p04')
+
 
 bl, al = butter(3, 12.0, 'lp', fs=250)  # 2, 13.0, 'lp', fs=250
 b, a = butter(2, 13.0, 'lp', fs=250)  # 3, 2.0, 'lp', fs=250
+# print(f"b = {b}\na = {a}")
 bh, ah = butter(1, 0.2, 'hp', fs=250)  # 3, 1.0, 'hp', fs=250
-# print(f"bl: {bl}, al: {al}")
-# print(f"b: {b}, a: {a}")
-
-
 
 def time_fun(func):
     def wrapper(*args, **kwargs):
@@ -63,17 +55,17 @@ def time_fun(func):
     return wrapper
 
 def main():
-    fdir = QFileDialog.getExistingDirectory(parent=None, directory="C:/EcgVar")
+    fdir = QFileDialog.getExistingDirectory(parent=None, directory="C:/EcgVar/fibr")
     print(fdir)
     lead1 = np.load(fdir + "/clean_lead1.npy")
     lead2 = np.load(fdir + "/clean_lead2.npy")
     lead3 = np.load(fdir + "/clean_lead3.npy")
-    # get_Q(fdir)
+
     try:
-        r_pos = np.load(fdir + "/r_pos.npy")
-        intervals = np.load(fdir + "/intervals.npy")
-        chars = np.load(fdir + "/chars.npy")
-        forms = np.load(fdir + "/forms.npy")
+        r_pos = np.load(fdir + "/r_pos1.npy")
+        intervals = np.load(fdir + "/intervals1.npy")
+        chars = np.load(fdir + "/chars1.npy")
+        forms = np.load(fdir + "/forms1.npy")
     except FileNotFoundError:
         get_Q(fdir)
         r_pos, intervals, chars, forms = parse_B1_txt(fdir)
@@ -83,34 +75,23 @@ def main():
         np.save(fdir + "/forms.npy", forms)
 
     try:
-        mask_pseudo_fibr = np.load(fdir + '/mask_pseudo_fibr.npy')
+        mask_pseudo_fibr = np.load(fdir + '/mask_pseudo_fibr1.npy')
         print(f"mask == 1: {mask_pseudo_fibr[mask_pseudo_fibr == 1].size}  mask == 0: {mask_pseudo_fibr[mask_pseudo_fibr == 0].size}")
         p.plot(mask_pseudo_fibr * 10 - 12, pen="w")
     except FileNotFoundError:
         mask_pseudo_fibr = np.ones(intervals.size)
         np.save(fdir + '/mask_pseudo_fibr.npy', mask_pseudo_fibr)
-    # r_pos, intervals, chars, forms = parse_B1_txt(fdir)
+
     plot_fragment_ecg(lead1, lead2, lead3, r_pos, k, 5000, ind_plot=1)
     try:
-        fintervals = np.load(fdir + "/fintervals.npy")
+        fintervals = np.load(fdir + "/fintervals1.npy")
     except FileNotFoundError:
         fintervals = del_V_S(intervals, chars)
         fintervals = del_artifacts(fintervals, intervals)
         np.save(fdir + "/fintervals.npy", fintervals)
-    # p.plot(fintervals, pen="m")
-    # mean_intervals = np.mean(fintervals)
-    # fintervals[fintervals < 75] = mean_intervals
-    # fintervals[fintervals > 370] = mean_intervals
-    # fintervals = del_V_S(fintervals, chars)
-    # fintervals = intervals
-    # p.plot(fintervals, pen="m")
-    # m_fintervals = medfilt(fintervals, 21)  # 5
-    # p.plot(m_fintervals, pen="y")
-    # clean_fintervals = m_fintervals + (fintervals - m_fintervals) * 0.2
-    # clean_fintervals = m_fintervals #+ (np.abs(fintervals - m_fintervals))**0.5 * 0.2 * np.sign(fintervals - m_fintervals)
-    # clean_fintervals = step_moving_average(fintervals, 6)
+
     try:
-        clean_fintervals = np.load(fdir + "/clean_fintervals.npy")
+        clean_fintervals = np.load(fdir + "/clean_fintervals1.npy")
     except FileNotFoundError:
         clean_fintervals = step_moving_average(fintervals, 4)
         clean_fintervals = step_moving_average(clean_fintervals, 6)
@@ -122,90 +103,65 @@ def main():
     p.plot(clean_fintervals, pen="g")
 
     try:
-        coef_p = np.load(fdir + "/coef_p.npy")
+        coef_p = np.load(fdir + "/coef_p1.npy")
     except FileNotFoundError:
-        inds_min = get_inds_min_diff(intervals)
+        inds_min = get_inds_min_diff(intervals, chars)
         mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2, mean_PR3 = get_p_pos(lead1, lead2, lead3, intervals,
                                                                                     r_pos, chars, inds_min)
+        plot_select_p(lead1, lead2, lead3, intervals, r_pos, mean_PR1, mean_PR2, mean_PR3, k)
         coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1,
                        mean_PR2, mean_PR3)
-        coef_p = step_moving_average(coef_p, 12)
-        coef_p = step_moving_average(coef_p, 8)
-        coef_p = moving_average(coef_p, 12)
-        coef_p = truncate_win2(coef_p, 0.85, 160)
-        coef_p = truncate_win2(coef_p, 0.75, 80)
+        # p.plot(coef_p, pen='g')
+        coef_p = step_moving_average(coef_p, 20)
+        # p.plot(coef_p, pen='r')
+        coef_p = moving_average(coef_p, 40)
+        coef_p = moving_average(coef_p, 20)
+        # coef_p = truncate_win2(coef_p, 0.85, 160)
+        # coef_p = truncate_win2(coef_p, 0.75, 80)
         np.save(fdir + "/coef_p.npy", coef_p)
+        print(f"mean_coef_p = {coef_p.mean()}")
     p.plot(coef_p, pen='y')
-
-    coef_fibr = get_scatter_coef1(fintervals)
-    # coef_fibr *= mask_pseudo_fibr
-    coef_fibr = step_moving_average(coef_fibr, 12)
-    coef_fibr = step_moving_average(coef_fibr, 8)
-    coef_fibr = moving_average(coef_fibr, 12)
-    # p.plot(coef_fibr, pen='c')
-    coef_fibr = truncate_win2(coef_fibr, 0.85, 160)
-    coef_fibr = truncate_win2(coef_fibr, 0.75, 80)
-    p.plot(coef_fibr, pen='c')
-    # print(f"div = {coef_fibr[71090] / coef_fibr[46420]:.2f}")
-    # coef_p = coef_p - 0.0
-    # coef_p[coef_p < 0.0] = 0.0
-    # coef_fibr = coef_fibr - 0.5
-    # coef_fibr[coef_fibr < 0.0] = 0.0
-    # e_coef_p = coef_p * coef_fibr
-    e_coef_p = coef_p * coef_fibr * (0.5 + 100 / clean_fintervals)
-    # e_coef_p[e_coef_p < 0.0] = 0.0
-    e_coef_p = step_moving_average(e_coef_p, 12)
-    e_coef_p = step_moving_average(e_coef_p, 8)
-    e_coef_p = moving_average(e_coef_p, 12)
-    # p.plot(e_coef_p, pen='w')
-    e_coef_p = truncate_win2(e_coef_p, 0.85, 160)
-    e_coef_p = truncate_win2(e_coef_p, 0.75, 80)
-    # fibr_num_sampl = e_coef_p[e_coef_p > clean_fintervals].size
-    # print(f"fibr_num_sampl = {fibr_num_sampl}")
-    # count_trans_coef = count_trans(e_coef_p, clean_fintervals)
-    # print(f"count_trans_coef = {count_trans_coef}")
-    # if fibr_num_sampl / e_coef_p.size > 0.9:
-    #     e_coef_p = truncate_ch(e_coef_p, 0.75)
+    # coef_p = truncate_win2(coef_p, 0.75, 80)
+    # p.plot(coef_p, pen='r')
     try:
-        start_ind_arr = np.load(fdir + "/start_ind_arr.npy")
-        stop_ind_arr = np.load(fdir + "/stop_ind_arr.npy")
-        diff_stop_start = np.load(fdir + "/diff_stop_start.npy")
+        coef_disp = np.load(fdir + "/coef_disp1.npy")
     except FileNotFoundError:
-        start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(e_coef_p, clean_fintervals, mask_pseudo_fibr)
+        coef_disp = get_disp_coef1(fintervals)
+        # p.plot(coef_disp, pen='m')
+        # coef_disp = truncate_win2(coef_disp, 0.8, 70)
+        # coef_disp = step_moving_average(coef_disp, 12)
+        # coef_disp = step_moving_average(coef_disp, 8)
+        # coef_disp = moving_average(coef_disp, 12)
+        np.save(fdir + "/coef_disp.npy", coef_disp)
+    # coef_disp = truncate_win2(coef_disp, 0.85, 160)
+    # coef_disp = truncate_win2(coef_disp, 0.75, 80)
+    p.plot(coef_disp, pen='c')
+    try:
+        coef_p = np.load(fdir + "/coef_fibr1.npy")
+    except FileNotFoundError:
+        coef_fibr = coef_p * coef_disp * (0.5 + 100 / clean_fintervals)
+        # p.plot(coef_fibr, pen='w')
+        coef_fibr = truncate_win2(coef_fibr, 0.85, 160)
+        coef_fibr = truncate_win2(coef_fibr, 0.75, 80)
+        np.save(fdir + "/coef_fibr.npy", coef_fibr)
+
+    try:
+        start_ind_arr = np.load(fdir + "/start_ind_arr1.npy")
+        stop_ind_arr = np.load(fdir + "/stop_ind_arr1.npy")
+        diff_stop_start = np.load(fdir + "/diff_stop_start1.npy")
+    except FileNotFoundError:
+        start_ind_arr, stop_ind_arr, diff_stop_start = get_fibr_num_samples(coef_fibr, clean_fintervals, mask_pseudo_fibr)
         np.save(fdir + "/start_ind_arr.npy", start_ind_arr)
         np.save(fdir + "/stop_ind_arr.npy", stop_ind_arr)
         np.save(fdir + "/diff_stop_start.npy", diff_stop_start)
-        # print(f"start_ind_arr = {start_ind_arr}")
-        # print(f"stop_ind_arr = {stop_ind_arr}")
-        # print(f"diff_stop_start = {diff_stop_start}")
+
         print(f"Количество эпизодов фибрилляции: = {diff_stop_start.size}")
-    # s_over =  np.sum(e_coef_p[e_coef_p > clean_fintervals] - clean_fintervals[e_coef_p > clean_fintervals])
-    # print(f"s_over = {s_over:.1f}")
-    # s_under = np.sum(clean_fintervals[e_coef_p < clean_fintervals] - e_coef_p[e_coef_p < clean_fintervals])
-    # print(f"s_under = {s_under:.1f}")
 
     norm_coef = 1.0
     print(f"norm_coef = {norm_coef:.2f}")
-    e_coef_p *= norm_coef
-    # p.plot(e_coef_p, pen='r', fillLevel=0.0, brush=(60, 180, 60, 140))
-    p.plot(e_coef_p, pen='r')
-    # p.plot(e_coef_p * (0.5 + 100 / clean_fintervals), pen='c')
-    # over_thresh = get_over_threshold(e_coef_p)
-    # over_line = np.ones(e_coef_p.size) * over_thresh
-    # mean_line = np.ones(e_coef_p.size) * np.mean(e_coef_p)
-    # p.plot(mean_line, pen='r')
-
-    # w_sum_coef = win_sum_coef(e_coef_p, clean_fintervals, 10)
-    # p.plot(w_sum_coef, pen='m')
-    # w_mean_line = np.ones(w_sum_coef.size) * np.mean(w_sum_coef)
-    # w_over_thresh = get_over_threshold(w_sum_coef)
-    # w_over_line = np.ones(w_sum_coef.size) * w_over_thresh
-    # p.plot(w_mean_line, pen='m')
-    # w_o_sum_coef = w_sum_coef * (over_thresh / w_over_thresh * 2.0)
-    # p.plot(w_o_sum_coef, pen='c')
-    # w_norm_coef = np.mean(e_coef_p) / np.mean(w_sum_coef)
-    # w_sum_coef = w_sum_coef * w_norm_coef
-    # p.plot(w_sum_coef, pen='y')
+    coef_fibr *= norm_coef
+    # p.plot(coef_fibr, pen='r', fillLevel=0.0, brush=(60, 180, 60, 140))
+    p.plot(coef_fibr, pen='r')
 
 
 if __name__ == "__main__":

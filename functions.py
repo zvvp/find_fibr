@@ -12,12 +12,115 @@ from functools import wraps
 from timeit import default_timer
 
 
-k = 28640
+k = 9000
 bl, al = butter(3, 12.0, 'lp', fs=250)  # 2, 13.0, 'lp', fs=250
+# print(f"bl: {bl}")
+# print(f"al: {al}")
 b, a = butter(2, 13.0, 'lp', fs=250)  # 3, 2.0, 'lp', fs=250
+# print(f"b: {b}")
+# print(f"a: {a}")
 bh, ah = butter(1, 0.2, 'hp', fs=250)  # 3, 1.0, 'hp', fs=250
-# print(f"bl: {bl}, al: {al}")
-# print(f"b: {b}, a: {a}")
+# print(f"bh: {bh}")
+# print(f"ah: {ah}")
+
+def get_Q(fdir):
+    try:
+        os.remove(fdir + "/B1.txt")
+    except FileNotFoundError:
+        pass
+    try:
+        os.remove(fdir + "/F.txt")
+    except FileNotFoundError:
+        pass
+    s = 0
+    with open(fdir + "/B.txt", "r") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
+            if (';N' in lines[i]) or (';S' in lines[i]):  # and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
+                periods = get_periods(lines[i - 2:i + 3])
+                tf = np.array(periods)
+                diff_tf = np.diff(tf)
+                diff21 = diff_tf[2] - diff_tf[1]
+                ref_t = np.array([tf[1], tf[1] * 0.6, tf[1] * 1.3, tf[1]])
+                ref_t0 = np.array([tf[1], tf[1] * 0.6, tf[1], tf[1] * 0.6])
+                ref_t1 = np.array([tf[1], tf[1] * 1.35, tf[1] , tf[1] * 1.35])
+                # ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.65, tf[1]])
+                # ref_t4 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.5, tf[1]])
+                coef_cor = get_coef_cor(ref_t, tf[1:])
+                coef_cor0 = get_coef_cor(ref_t0, tf[1:])
+                coef_cor1 = get_coef_cor(ref_t1, tf[1:])
+                # coef_cor3 = get_coef_cor(ref_t3, tf[1:])
+                # coef_cor4 = get_coef_cor(ref_t4, tf[1:])
+                arr_cor = np.array([coef_cor, coef_cor0, coef_cor1])
+                trs = 0.99  # 0.985
+                if (np.max(arr_cor) > trs) or (diff21 > 160):
+                    lines[i] = lines[i].replace(';N', ';Q')
+                    s += 1
+                # if ((coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs) or (
+                #         coef_cor3 > trs)) and (np.std(tf) > 50):  # or (coef_cor4 > trs):
+                #     lines[i] = lines[i].replace(';N', ';Q')
+                #     s += 1
+    lines[6] = lines[6] + f"НЖ: {s}"
+    with open(fdir + "/B1.txt", "w") as f:
+        for i, line in enumerate(lines):
+            f.write(line)
+
+def parse_B1_txt(fdir):
+    r_pos = []
+    intervals = []
+    chars = []
+    forms = []
+    with open(fdir + "/B1.txt", "r") as f:
+        for line in f:
+            if ';' in line:
+                line_split = line.split(';')
+                r_pos.append(int(line_split[0]))
+                intervals.append(int(line_split[1]))
+                chars.append(line_split[2][0])
+                forms.append(int(line.split(':')[1]))
+        r_pos = np.array(r_pos)
+        intervals = np.array(intervals)
+        chars = np.array(chars)
+        forms = np.array(forms)
+        intervals[intervals >= 500] = 500
+    return r_pos, intervals, chars, forms
+
+def del_V_S(intervals, chars):
+    len_in = len(intervals)
+    out = intervals.copy()
+    diff_intervals = np.abs(intervals - np.roll(intervals, 1))[1:]
+    for i in np.arange(5, len_in - 5):
+        max_diff = np.max(diff_intervals[i:i + 2])
+        mean_diff = np.mean(abs(diff_intervals[i - 1:i + 2])) # i - 2:i + 3
+        mean_interval = np.mean(intervals[[i - 3,i - 2,i - 1, i + 2, i + 3]])
+        if 'V' in chars[i] and 'V' in chars[i + 1] and (max_diff > 100.0):
+            out[i] = mean_interval + (intervals[i] - mean_interval) * 0.2
+        elif 'V' in chars[i] and not 'V' in chars[i + 1] and (max_diff > 40.0):
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.2
+        elif 'Q' in chars[i] and (mean_diff > 30.0):
+            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.3
+    return out
+
+def del_artifacts(fintervals, intervals):
+    out = fintervals.copy()
+    for i in np.arange(1, len(intervals) - 3):
+        if ((out[i] / ((out[i-1] + out[i+1]) / 2.0) > 1.9) and
+                (abs(out[i-1] - out[i+1]) < 10)):
+            out[i] = (fintervals[i-1] + fintervals[i+1]) / 2.0
+        elif ((2.2 > (out[i-1] + out[i+2]) / (out[i] + out[i+1]) > 1.8) and
+              (abs(out[i-1] - out[i+2]) < 15)):
+            out[i] = fintervals[i+2]
+            out[i+1] = fintervals[i-1]
+        elif ((2.2 > (out[i-1] * 2 + out[i+3]) / (out[i] + out[i+1] + out[i+2]) > 1.8) and
+              (abs(out[i-1] - out[i+3]) < 15)):
+            out[i] = fintervals[i+3]
+            out[i+1] = fintervals[i-1]
+            out[i+2] = fintervals[i+3]
+
+    return out
+
+
 
 def time_fun(func):
     @wraps(func)
@@ -75,49 +178,6 @@ def get_time_from_addr(line):
         h = h - 24
         d = d + 1
     return f": {d + 1} день {h}:{m}:{s}\n"
-
-def parse_B_txt():
-    r_pos = []
-    intervals = []
-    chars = []
-    forms = []
-    with open("C:/EcgVar/B.txt", "r") as f:
-        for line in f:
-            if ';' in line:
-                temp = int(line.split(';')[0])
-                r_pos.append(temp)
-                temp = int(line.split(';')[1])
-                intervals.append(temp)
-                temp = line.split(';')[2][0]
-                chars.append(temp)
-                temp = int(line.split(':')[1])
-                forms.append(temp)
-        r_pos = np.array(r_pos)
-        intervals = np.array(intervals)
-        chars = np.array(chars)
-        forms = np.array(forms)
-    return r_pos, intervals, chars, forms
-
-# @time_fun
-def parse_B1_txt(fdir):
-    r_pos = []
-    intervals = []
-    chars = []
-    forms = []
-    with open(fdir + "/B1.txt", "r") as f:
-        for line in f:
-            if ';' in line:
-                line_split = line.split(';')
-                r_pos.append(int(line_split[0]))
-                intervals.append(int(line_split[1]))
-                chars.append(line_split[2][0])
-                forms.append(int(line.split(':')[1]))
-        r_pos = np.array(r_pos)
-        intervals = np.array(intervals)
-        chars = np.array(chars)
-        forms = np.array(forms)
-        intervals[intervals >= 500] = 500
-    return r_pos, intervals, chars, forms
 
 def get_periods(lines):
     period_2 = int(lines[0].split(';')[1])
@@ -182,7 +242,6 @@ def get_periods(lines):
 #         for i, line in enumerate(lines):
 #             f.write(line)
 
-# @njit
 def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
     mean_x: float = np.mean(x)
     mean_y: float = np.mean(y)
@@ -193,50 +252,6 @@ def get_coef_cor(x: np.ndarray, y: np.ndarray) -> float:
         return (mean_xy - mean_x * mean_y) / (std_x * std_y)
     else:
         return 0
-
-@time_fun
-def get_Q(fdir):
-    try:
-        os.remove(fdir + "/B1.txt")
-    except FileNotFoundError:
-        pass
-    try:
-        os.remove(fdir + "/F.txt")
-    except FileNotFoundError:
-        pass
-    s = 0
-    with open(fdir + "/B.txt", "r") as f:
-        lines = f.readlines()
-    for i, line in enumerate(lines):
-        if (i >= 14) and (i < len(lines) - 2):  # i > 13   i < len(lines) - 1
-            if (';N' in lines[i]) or (';S' in lines[i]):  # and (not ';V' in lines[i - 1]) and (not ';S' in lines[i - 1]):
-                periods = get_periods(lines[i - 2:i + 3])
-                tf = np.array(periods)
-                diff_tf = np.diff(tf)
-                diff21 = diff_tf[2] - diff_tf[1]
-                ref_t = np.array([tf[1], tf[1] * 0.6, tf[1] * 1.3, tf[1]])
-                ref_t0 = np.array([tf[1], tf[1] * 0.6, tf[1], tf[1] * 0.6])
-                ref_t1 = np.array([tf[1], tf[1] * 1.35, tf[1] , tf[1] * 1.35])
-                # ref_t3 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.65, tf[1]])
-                # ref_t4 = np.array([tf[1], tf[1] * 1.6, tf[1] * 0.5, tf[1]])
-                coef_cor = get_coef_cor(ref_t, tf[1:])
-                coef_cor0 = get_coef_cor(ref_t0, tf[1:])
-                coef_cor1 = get_coef_cor(ref_t1, tf[1:])
-                # coef_cor3 = get_coef_cor(ref_t3, tf[1:])
-                # coef_cor4 = get_coef_cor(ref_t4, tf[1:])
-                arr_cor = np.array([coef_cor, coef_cor0, coef_cor1])
-                trs = 0.99  # 0.985
-                if (np.max(arr_cor) > trs) or (diff21 > 160):
-                    lines[i] = lines[i].replace(';N', ';Q')
-                    s += 1
-                # if ((coef_cor > trs) or (coef_cor0 > trs) or (coef_cor1 > trs) or (
-                #         coef_cor3 > trs)) and (np.std(tf) > 50):  # or (coef_cor4 > trs):
-                #     lines[i] = lines[i].replace(';N', ';Q')
-                #     s += 1
-    lines[6] = lines[6] + f"НЖ: {s}"
-    with open(fdir + "/B1.txt", "w") as f:
-        for i, line in enumerate(lines):
-            f.write(line)
 
 def get_S():
     try:
@@ -293,7 +308,6 @@ def get_S():
         for i, line in enumerate(lines):
             f.write(line)
 
-
 def get_max_p(fragment):
     diff_loc = get_diff_loc(fragment)
     if (diff_loc.size == 0) or (diff_loc.size > 2):
@@ -301,7 +315,6 @@ def get_max_p(fragment):
     else:
         return np.max(diff_loc)
         # return 0.1
-
 
 def get_number_of_peaks1(fragment):
     diff_loc = get_diff_loc(fragment)
@@ -314,7 +327,6 @@ def get_number_of_peaks1(fragment):
     #     return 1
     # else:
     #     return 0
-
 
 def get_diff_loc(fragment):
     num_max = argrelmax(fragment)[0]
@@ -330,25 +342,6 @@ def get_diff_loc(fragment):
             return np.array([])
         else:
             return diff_loc
-
-@time_fun
-def del_artifacts(fintervals, intervals):
-    out = fintervals.copy()
-    for i in np.arange(1, len(intervals) - 3):
-        if ((out[i] / ((out[i-1] + out[i+1]) / 2.0) > 1.9) and
-              (abs(out[i-1] - out[i+1]) < 10)):
-            out[i] = (fintervals[i-1] + fintervals[i+1]) / 2.0
-        elif ((2.2 > (out[i-1] + out[i+2]) / (out[i] + out[i+1]) > 1.8) and
-                (abs(out[i-1] - out[i+2]) < 15)):
-            out[i] = fintervals[i+2]
-            out[i+1] = fintervals[i-1]
-        elif ((2.2 > (out[i-1] * 2 + out[i+3]) / (out[i] + out[i+1] + out[i+2]) > 1.8) and
-              (abs(out[i-1] - out[i+3]) < 15)):
-            out[i] = fintervals[i+3]
-            out[i+1] = fintervals[i-1]
-            out[i+2] = fintervals[i+3]
-
-    return out
 
 def del_V_A(intervals, chars):
     len_in = len(intervals)
@@ -367,36 +360,6 @@ def del_V_A(intervals, chars):
             out1[i:i + 2] = mean_interval + (out1[i:i + 2] - mean_interval) * 0.3
     return out1
 
-@time_fun
-def del_V_S(intervals, chars):
-    len_in = len(intervals)
-    out = intervals.copy()
-    diff_intervals = np.abs(intervals - np.roll(intervals, 1))[1:]
-    # mean_diff = np.mean(diff_intervals)
-    # print(f"mean_diff = {mean_diff:.2f}")
-    # diff_intervals = np.abs(diff_intervals - np.roll(diff_intervals, 1))[1:]
-    # mean_diff = np.mean(diff_intervals)
-    # print(f"mean_diff = {mean_diff:.2f}")
-    # diff_intervals = np.abs(diff_intervals - np.roll(diff_intervals, 1))[1:]
-    # mean_diff = np.mean(diff_intervals)
-    # print(f"mean_diff = {mean_diff:.2f}")
-    for i in np.arange(5, len_in - 5):
-        max_diff = np.max(diff_intervals[i:i + 2])
-        mean_diff = np.mean(abs(diff_intervals[i - 1:i + 2])) # i - 2:i + 3
-        # mean_interval = np.mean(intervals[i - 5:i + 5])
-        mean_interval = np.mean(intervals[[i - 3,i - 2,i - 1, i + 2, i + 3]])
-        if 'V' in chars[i] and 'V' in chars[i + 1] and (max_diff > 100.0):
-            out[i] = mean_interval + (intervals[i] - mean_interval) * 0.2
-        elif 'V' in chars[i] and not 'V' in chars[i + 1] and (max_diff > 40.0):
-            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.2
-        # if 'V' in chars[i] and (max_diff > 40.0):
-        #     out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.2
-            # bp = 0
-        elif 'Q' in chars[i] and (mean_diff > 30.0):
-            out[i:i + 2] = mean_interval + (intervals[i:i + 2] - mean_interval) * 0.3
-    # out = del_artifacts(out)
-    return out
-
 def get_diff_intervals(intervals, step):
     diff_intervals = intervals.copy()
     diff_intervals[step:] = np.abs(diff_intervals[step:] - diff_intervals[:-step])
@@ -404,8 +367,7 @@ def get_diff_intervals(intervals, step):
     diff_intervals[-step:] = diff_intervals[-(step + 1)]
     return diff_intervals
 
-@time_fun
-def get_scatter_coef1(intervals):
+def get_disp_coef1(intervals):
     len_in = len(intervals)
     out = np.zeros(len_in)
     diff1 = get_diff_intervals(intervals, 1)
@@ -680,6 +642,17 @@ def get_win_std(ch, len_win):
         out[i] = np.std(win)
     return out
 
+def get_p_amp1(fragment, mean_amp_p):
+    pzub = 0.0
+    amp_pzub = 0.0
+    ind_max_loc = argrelmax(fragment)[0]
+    if (ind_max_loc.size > 0) and (ind_max_loc.size < 4):
+        amp_pzub = np.max(fragment[ind_max_loc])
+        if (amp_pzub > mean_amp_p * 0.08) and (amp_pzub > 0.008):
+            pzub = 1.0
+    return pzub, amp_pzub
+
+
 def get_p_amp(fragment, mean_amp_p):
     pzub = 0.0
     amp_pzub = 0.0
@@ -723,9 +696,9 @@ def get_p_amp(fragment, mean_amp_p):
         max_amp = np.max([amp_pzub1, amp_pzub2])
         min_amp = np.min([amp_pzub1, amp_pzub2])
         div_amp = max_amp / min_amp
-        if div_amp > 10.0:
+        if div_amp > 1.3: # div_amp > 10.0
             amp_pzub = max_amp
-    if (amp_pzub > mean_amp_p * 0.06) and (amp_pzub > 0.002):   # (amp_pzub > mean_amp_p * 0.05) and (amp_pzub > 0.001):
+    if (amp_pzub > mean_amp_p * 0.01) and (amp_pzub > 0.001):   # (amp_pzub > mean_amp_p * 0.05) and (amp_pzub > 0.0035):
         pzub = 1.0
     return pzub, amp_pzub
 
@@ -742,7 +715,7 @@ def win_sum_coef(arr_coef, clean_intervals, len_win):
     out[-half_win:] = out[-half_win - 1]
     return out
 
-def get_inds_min_diff(intervals):
+def get_inds_min_diff(intervals, chars):
     """
     Возвращает индексы интервалов, где абсолютная разница между
     последовательными интервалами меньше или равна 3.
@@ -754,10 +727,15 @@ def get_inds_min_diff(intervals):
     numpy.ndarray: 1D numpy массив индексов, где абсолютная разница
     между последовательными интервалами меньше или равна 3.
     """
+    inds_min_diff = np.array([], dtype=int)
     diff_intervals = np.abs(intervals - np.roll(intervals, -1))
-    return np.where(diff_intervals <= 3)[0]
+    for i in range(1, diff_intervals.size):
+        min_diff = intervals[i] * 0.05
+        if (diff_intervals[i] <= min_diff) and (chars[i] == "N") and (chars[i-1] == "N"):
+            inds_min_diff = np.append(inds_min_diff, i)
+    return inds_min_diff
 
-def plot_select_p(lead1, lead2, lead3, intervals, r_pos, ind):
+def plot_select_p(lead1, lead2, lead3, intervals, r_pos, mean_PR1, mean_PR2, mean_PR3, ind):
     """
     Строит графики выбранных фрагментов трех каналов и их отфильтрованные версии.
 
@@ -774,19 +752,32 @@ def plot_select_p(lead1, lead2, lead3, intervals, r_pos, ind):
     """
     len_pr = int(intervals[ind] * 0.36 + 5)
     start = r_pos[ind] - len_pr
-    stop = r_pos[ind] - int(len_pr * 0.05 + 10)
+    # stop = r_pos[ind] - int(len_pr ** 0.5 * 0.66 + 2)
+    stop = r_pos[ind] - 5
     fragment1 = lead1[start:stop]
     fragment2 = lead2[start:stop]
     fragment3 = lead3[start:stop]
-    # p01.plot(fragment1, pen='g')
-    # p01.plot(fragment2, pen='y')
-    # p01.plot(fragment3, pen='c')
+    # fragment1[fragment1 < 0.0] = 0.0
+    # fragment2[fragment2 < 0.0] = 0.0
+    # fragment3[fragment3 < 0.0] = 0.0
+    p = pg.plot()
+    p.showGrid(x=True, y=True)
+    p.setTitle('p')
+    p.plot(fragment1, pen='g')
+    p.plot(fragment2, pen='y')
+    p.plot(fragment3, pen='c')
     fragment1 = filtfilt(bl, al, fragment1)
     fragment2 = filtfilt(bl, al, fragment2)
     fragment3 = filtfilt(bl, al, fragment3)
-    # p01.plot(fragment1, pen='g')
-    # p01.plot(fragment2, pen='y')
-    # p01.plot(fragment3, pen='c')
+    fragment1[fragment1 < 0.0] = 0.0
+    fragment2[fragment2 < 0.0] = 0.0
+    fragment3[fragment3 < 0.0] = 0.0
+    fragment1 = filtfilt(bl, al, fragment1)
+    fragment2 = filtfilt(bl, al, fragment2)
+    fragment3 = filtfilt(bl, al, fragment3)
+    p.plot(fragment1, pen='g')
+    p.plot(fragment2, pen='y')
+    p.plot(fragment3, pen='c')
     # p02.plot(lead1[r_pos[ind] - 1600:r_pos[ind] + 1600], pen='g')
     # p02.plot(lead2[r_pos[ind] - 1600:r_pos[ind] + 1600] - 2, pen='y')
     # p02.plot(lead3[r_pos[ind] - 1600:r_pos[ind] + 1600] - 4, pen='c')
@@ -803,9 +794,9 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # pos_p1 = 0
     # pos_p2 = 0
     # pos_p3 = 0
-    # presence_PR1 = np.zeros(r_pos.size, dtype=int)
-    # presence_PR2 = np.zeros(r_pos.size, dtype=int)
-    # presence_PR3 = np.zeros(r_pos.size, dtype=int)
+    presence_PR1 = np.zeros(r_pos.size, dtype=int)
+    presence_PR2 = np.zeros(r_pos.size, dtype=int)
+    presence_PR3 = np.zeros(r_pos.size, dtype=int)
     intervals_PR1 = np.array([], dtype=int)
     intervals_PR2 = np.array([], dtype=int)
     intervals_PR3 = np.array([], dtype=int)
@@ -823,7 +814,7 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
         if (chars[i] == 'N') and (chars[i - 1] == 'N'):  # and (chars[i + 1] == 'N'):
             len_pr = int(intervals[i] * 0.36 + 5)  # len_pr = int(intervals[i] * 0.36 + 5)
             start = r_pos[i] - len_pr
-            stop = r_pos[i] - 7  # r_pos[i] - 6
+            stop = r_pos[i] - 7  # r_pos[i] - 7
             # stop = r_pos[i] - int(len_pr * 0.05 + 7)
             fragment1 = lead1[start:stop]
             fragment2 = lead2[start:stop]
@@ -835,6 +826,21 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
             fragment1 = filtfilt(bl, al, fragment1)
             fragment2 = filtfilt(bl, al, fragment2)
             fragment3 = filtfilt(bl, al, fragment3)
+            fragment1[fragment1 < 0.0] = 0.0
+            fragment2[fragment2 < 0.0] = 0.0
+            fragment3[fragment3 < 0.0] = 0.0
+            fragment1 = filtfilt(bl, al, fragment1)
+            fragment2 = filtfilt(bl, al, fragment2)
+            fragment3 = filtfilt(bl, al, fragment3)
+            # fragment1[fragment1 < 0.0] = 0.0
+            # fragment2[fragment2 < 0.0] = 0.0
+            # fragment3[fragment3 < 0.0] = 0.0
+            # fragment1 = filtfilt(bl, al, fragment1)
+            # fragment2 = filtfilt(bl, al, fragment2)
+            # fragment3 = filtfilt(bl, al, fragment3)
+            # fragment1[fragment1 < 0.0] = 0.0
+            # fragment2[fragment2 < 0.0] = 0.0
+            # fragment3[fragment3 < 0.0] = 0.0
             # if (k + 15) > i >= k:
             #     p04.plot(fragment1 - 0.2, pen='g', title='Fragment1')
             #     p04.plot(fragment2 - 0.4, pen='y', title='Fragment2')
@@ -870,15 +876,25 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
                     intervals_PR3 = np.append(intervals_PR3, len_pr - pos_loc_max_frag3[ind_max3])
                     inds_PR3 = np.append(inds_PR3, i)
                     arr_amp_p3[i] = amp_p3
-    mean_amp_p1 = np.mean(arr_amp_p1)
-    mean_amp_p2 = np.mean(arr_amp_p2)
-    mean_amp_p3 = np.mean(arr_amp_p3)
+    # mean_amp_p1 = np.mean(arr_amp_p1)
+    # mean_amp_p2 = np.mean(arr_amp_p2)
+    # mean_amp_p3 = np.mean(arr_amp_p3)
+    mean_amp_p1 = np.median(arr_amp_p1[arr_amp_p1 > 0.0])
+    mean_amp_p2 = np.median(arr_amp_p2[arr_amp_p2 > 0.0])
+    mean_amp_p3 = np.median(arr_amp_p3[arr_amp_p3 > 0.0])
     print(f"mean_amp_p1: {mean_amp_p1}")
     print(f"mean_amp_p2: {mean_amp_p2}")
     print(f"mean_amp_p3: {mean_amp_p3}")
-    mean_PR1 = int(intervals_PR1.mean())
-    mean_PR2 = int(intervals_PR2.mean())
-    mean_PR3 = int(intervals_PR3.mean())
+    mean_PR1 = int(np.median(intervals_PR1))
+    mean_PR2 = int(np.median(intervals_PR2))
+    mean_PR3 = int(np.median(intervals_PR3))
+    PR = int((mean_PR1 + mean_PR2 + mean_PR3) / 3)
+    mean_PR1 = PR
+    mean_PR2 = PR
+    mean_PR3 = PR
+    # mean_PR1 = int(intervals_PR1.mean())
+    # mean_PR2 = int(intervals_PR2.mean())
+    # mean_PR3 = int(intervals_PR3.mean())
     print(f"mean_PR1: {mean_PR1}     {intervals_PR1.size}")
     print(f"mean_PR2: {mean_PR2}     {intervals_PR2.size}")
     print(f"mean_PR3: {mean_PR3}     {intervals_PR3.size}")
@@ -896,12 +912,24 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # if intervals_PR3.size > 351:
     #     intervals_PR3 = moving_average(intervals_PR3, 351)
 
-    # presence_PR1[inds_PR1] = intervals_PR1
-    # presence_PR2[inds_PR2] = intervals_PR2
-    # presence_PR3[inds_PR3] = intervals_PR3
-    # presence_PR1 = interp_pr(presence_PR1)
-    # presence_PR2 = interp_pr(presence_PR2)
-    # presence_PR3 = interp_pr(presence_PR3)
+    presence_PR1[inds_PR1] = intervals_PR1
+    presence_PR2[inds_PR2] = intervals_PR2
+    presence_PR3[inds_PR3] = intervals_PR3
+    presence_PR1 = interp_pr(presence_PR1)
+    presence_PR2 = interp_pr(presence_PR2)
+    presence_PR3 = interp_pr(presence_PR3)
+    presence_PR1 = truncate_win2(presence_PR1, 0.5, 2000)
+    presence_PR2 = truncate_win2(presence_PR2, 0.5, 2000)
+    presence_PR3 = truncate_win2(presence_PR3, 0.5, 2000)
+    presence_PR1 = moving_average(presence_PR1, 2000)
+    presence_PR2 = moving_average(presence_PR2, 2000)
+    presence_PR3 = moving_average(presence_PR3, 2000)
+    # presence_PR1 = medfilt(presence_PR1, 21)
+    # presence_PR2 = medfilt(presence_PR2, 21)
+    # presence_PR3 = medfilt(presence_PR3, 21)
+    np.save("presence_PR1.npy", presence_PR1)
+    np.save("presence_PR2.npy", presence_PR2)
+    np.save("presence_PR3.npy", presence_PR3)
     # presence_PR = np.array([presence_PR1], [presence_PR2], [presence_PR3])
     # presence_PR = np.mean(presence_PR)
     # presence_PR = presence_PR.astype(int)
@@ -928,6 +956,7 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # p03.plot(marr_amp_p2 - 1, pen='g')
     # p03.plot(marr_amp_p3 - 2, pen='g')
 
+
     return mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2, mean_PR3
 
 @time_fun
@@ -951,6 +980,7 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     # buff = np.array([3, 3, 3])
     # mean_interval = (np.mean(intervals) + 400) * 0.06
     # mean_interval = (np.mean(intervals) + 400) * 1.5
+
     mean_PR1_copy = mean_PR1
     mean_PR2_copy = mean_PR2
     mean_PR3_copy = mean_PR3
@@ -965,26 +995,26 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         # fragment_l1 = lead1[start_slice:end_slice]
         # fragment_l2 = lead2[start_slice:end_slice]
         # fragment_l3 = lead3[start_slice:end_slice]
-        # if start_range_interval * 0.2 > 10:
+        # if len_pr * 0.2 > 10:
         #     end_slice = r_pos[i] - 10
         # end_slice = start_slice + 30
         end_slice1 = r_pos[i] - mean_PR1_copy + int(mean_PR1_copy ** 0.5 * 3.0)  # +15
         end_slice2 = r_pos[i] - mean_PR2_copy + int(mean_PR2_copy ** 0.5 * 3.0)  # +15
         end_slice3 = r_pos[i] - mean_PR3_copy + int(mean_PR3_copy ** 0.5 * 3.0)  # +15
         if mean_PR1 > intervals[i] * 0.36:  # // 3
-            # if start_range_interval < mean_PR1:
+            # if len_pr < mean_PR1:
             # fragment_l1 = lead1[start_slice1:end_slice1]
             fragment_l1 = lead1[start_slice:end_slice]
         else:
             fragment_l1 = lead1[start_slice1:end_slice1]
         if mean_PR2 > intervals[i] * 0.36:
-            # if start_range_interval < mean_PR2:
+            # if len_pr < mean_PR2:
             # fragment_l2 = lead2[start_slice2:end_slice2]
             fragment_l2 = lead2[start_slice:end_slice]
         else:
             fragment_l2 = lead2[start_slice2:end_slice2]
         if mean_PR3 > intervals[i] * 0.36:
-            # if start_range_interval < mean_PR3:
+            # if len_pr < mean_PR3:
             # fragment_l3 = lead3[start_slice3:end_slice3]
             fragment_l3 = lead3[start_slice:end_slice]
         else:
@@ -1004,10 +1034,10 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
             # p2[i] = 0.6
             # p3[i] = 0.6
         else:
-            # if mean_PR[i] < int(intervals[i] * 0.5):
-            # if True:
             fragment_l1_f = filtfilt(b, a, fragment_l1)
-            fragment_l1_f = filtfilt(bh, ah, fragment_l1_f)
+            fragment_l1_f[fragment_l1_f < 0.0] = 0.0
+            fragment_l1_f = filtfilt(b, a, fragment_l1_f)
+            # fragment_l1_f = filtfilt(bh, ah, fragment_l1_f)
             pzub, amp_pzub1 = get_p_amp(fragment_l1_f, mean_amp_p1)
             p1[i] = pzub
             # ind_max1 = argrelmax(fragment_l1_f)[0]
@@ -1017,9 +1047,10 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
             #     if (amp_p1 > mean_amp_p1 * 0.1) and (amp_p1 > 0.001):  # > 0.0001
             #         # if amp_p1 > 0.0015:   # > 0.0001
             #         p1[i] = 1.0
-
             fragment_l2_f = filtfilt(b, a, fragment_l2)
-            fragment_l2_f = filtfilt(bh, ah, fragment_l2_f)
+            fragment_l2_f[fragment_l2_f < 0.0] = 0.0
+            fragment_l2_f = filtfilt(b, a, fragment_l2_f)
+            # fragment_l2_f = filtfilt(bh, ah, fragment_l2_f)
             pzub, amp_pzub2 = get_p_amp(fragment_l2_f, mean_amp_p2)
             p2[i] = pzub
             # ind_max2 = argrelmax(fragment_l2_f)[0]
@@ -1029,9 +1060,10 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
             #     if (amp_p2 > mean_amp_p2 * 0.1) and (amp_p2 > 0.001):
             #         # if amp_p2 > 0.0015:
             #         p2[i] = 1.0
-
             fragment_l3_f = filtfilt(b, a, fragment_l3)
-            fragment_l3_f = filtfilt(bh, ah, fragment_l3_f)
+            fragment_l3_f[fragment_l3_f < 0.0] = 0.0
+            fragment_l3_f = filtfilt(b, a, fragment_l3_f)
+            # fragment_l3_f = filtfilt(bh, ah, fragment_l3_f)
             pzub, amp_pzub3 = get_p_amp(fragment_l3_f, mean_amp_p3)
             p3[i] = pzub
             # ind_max3 = argrelmax(fragment_l3_f)[0]
@@ -1128,42 +1160,9 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
                 (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
             if sum_p3 < 5.0:
                 sum_p3 = (sum_p1 + sum_p2) / 2.0
-        sum_buff = sum_p1 * sum_p2 * sum_p3 * 0.25  # 0.25
-        # sum_p_i = p1[i] + p2[i] + p3[i]
-        # if sum_p_i == 3.0:
-        #     sum_buff += 8.0
-        # elif (sum_p_i == 0.0):
-        #     sum_buff -= 8.0
-        # if sum_buff < 0.0:
-        #     sum_buff = 0.0
-        # sum_buff = 27.0 - sum_buff   # 24.0 - sum_buff
-        # sum_buff = 24.0 - sum_buff
-        # if sum_buff > 20.0:
-        #     sum_buff = 20.0
-        # if sum_buff < 0.0:
-        #     sum_buff = 0.0
-        # out[i - 2] = sum_buff
-        # win_t = intervals[i - 25:i + 26].copy()
-        # sort_win_t = np.sort(win_t)[:-12]
-        # mean_win = np.median(sort_win_t)
+        sum_buff = sum_p1 * sum_p2 * sum_p3 * 0.38  # 0.38
         out[i - 2] = sum_buff
-        # out[i] = sum_buff * 4.5
-        bp1 = 1
-    # out = medfilt(out, 15)
-    # out = moving_average(out, 40)
-    # out = medfilt(out, 15)
-    # out = moving_average(out, 50)
-    # out = moving_average(out, 25)
-    # out = moving_average(out, 31)
-    # out = moving_average(out, 31)
-    # out = truncate_win(out, 0.2, 10)
-    # out = truncate_win(out, 0.2, 20)
-    # out = truncate_win(out, 0.2, 30)
-    # out = truncate_win(out, 0.2, 10)
-    # out = truncate_win2(out, 0.8, 50)
-    # out[-20:] = out[-20]
     out = -(out - np.max(out))
-    # out = (-(out - np.max(out)) + 0.5) * 3.3
     out[:2] = out[2]
     out[-2:] = out[-3]
     return out
@@ -1249,6 +1248,28 @@ def get_start_time(fname):
 
 def get_addr_qrs(addr, start_addr):
     return addr + start_addr
+
+def parse_B_txt():
+    r_pos = []
+    intervals = []
+    chars = []
+    forms = []
+    with open("C:/EcgVar/B.txt", "r") as f:
+        for line in f:
+            if ';' in line:
+                temp = int(line.split(';')[0])
+                r_pos.append(temp)
+                temp = int(line.split(';')[1])
+                intervals.append(temp)
+                temp = line.split(';')[2][0]
+                chars.append(temp)
+                temp = int(line.split(':')[1])
+                forms.append(temp)
+        r_pos = np.array(r_pos)
+        intervals = np.array(intervals)
+        chars = np.array(chars)
+        forms = np.array(forms)
+    return r_pos, intervals, chars, forms
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
