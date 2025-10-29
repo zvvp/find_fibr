@@ -12,16 +12,15 @@ from functools import wraps
 from timeit import default_timer
 
 
-k = 9000
-bl, al = butter(3, 12.0, 'lp', fs=250)  # 2, 13.0, 'lp', fs=250
-# print(f"bl: {bl}")
-# print(f"al: {al}")
-b, a = butter(2, 13.0, 'lp', fs=250)  # 3, 2.0, 'lp', fs=250
-# print(f"b: {b}")
-# print(f"a: {a}")
-bh, ah = butter(1, 0.2, 'hp', fs=250)  # 3, 1.0, 'hp', fs=250
-# print(f"bh: {bh}")
-# print(f"ah: {ah}")
+k = 1995
+bl1, al1 = butter(2, 10.0, 'lp', fs=250)  # 2, 13.0, 'lp', fs=250
+bl2, al2 = butter(2, 25.0, 'lp', fs=250)
+
+b, a = butter(2, 18.0, 'lp', fs=250)  # 2, 13.0, 'lp', fs=250
+bi, ai = butter(1, 3.0, 'lp', fs=250)
+
+bh1, ah1 = butter(2, 1.0, 'hp', fs=250)  # 2, 1.0, 'hp', fs=250
+bh2, ah2 = butter(2, 0.1, 'hp', fs=250)
 
 def get_Q(fdir):
     try:
@@ -642,26 +641,54 @@ def get_win_std(ch, len_win):
         out[i] = np.std(win)
     return out
 
-def get_p_amp1(fragment, mean_amp_p):
+def interp_min_loc(min_loc, ind_min_loc):
+    out = np.array([])
+    for i in range(0, min_loc.size - 1):
+        diff_val = min_loc[i + 1] - min_loc[i]
+        count_step = int(ind_min_loc[i + 1] - ind_min_loc[i])
+        step_val = diff_val / count_step
+        for j in range(count_step):
+            out = np.append(out, min_loc[i] + step_val * j)
+    out = np.append(out, min_loc[-1])
+    return out
+# bi, ai = butter(1, 0.1, 'low', fs=250)
+def get_p_amp1(fragment, max_amp_p, min_amp_p):
     pzub = 0.0
     amp_pzub = 0.0
+    ind_p = 0
     ind_max_loc = argrelmax(fragment)[0]
-    if (ind_max_loc.size > 0) and (ind_max_loc.size < 4):
+    if (ind_max_loc.size > 0) and (ind_max_loc.size <= 3):
+        # ind_min_loc = argrelmin(fragment)[0]
+        # ind_min_loc = np.append(ind_min_loc, fragment.size-1)
+        # ind_min_loc = np.append(0, ind_min_loc)
+        # min_loc = fragment[ind_min_loc]
+        # isoline = interp_min_loc(min_loc, ind_min_loc)
+        # isoline = filtfilt(bi, ai, fragment)
+        # fragment = fragment - isoline
+        # plotter.plot_fragment(fragment, k)
         amp_pzub = np.max(fragment[ind_max_loc])
-        if (amp_pzub > mean_amp_p * 0.08) and (amp_pzub > 0.008):
-            pzub = 1.0
-    return pzub, amp_pzub
+        ind_max = np.argmax(fragment[ind_max_loc])
+        ind_p = ind_max_loc[ind_max]
+    if 5.0 * max_amp_p > amp_pzub > 1.35 * min_amp_p:
+        pzub = 1.0
+    # else:
+    #     amp_pzub = 0.0
+    #     ind_p = 0
+    return pzub, amp_pzub, ind_p
 
 
-def get_p_amp(fragment, mean_amp_p):
+def get_p_amp(fragment, max_amp_p, min_amp_p):
     pzub = 0.0
     amp_pzub = 0.0
-    # amp_pzub1 = 0.0
-    # amp_pzub2 = 0.0
+    amp_pzub1 = 0.0
+    amp_pzub2 = 0.0
+    ind_p = 0
     ind_max_loc = argrelmax(fragment)[0]
     if ind_max_loc.size == 0:
-        return pzub, amp_pzub
+        return pzub, amp_pzub, ind_p
     ind_min_loc = argrelmin(fragment)[0]
+    if (ind_max_loc.size == 0) and (ind_min_loc.size == 0):
+        return pzub, amp_pzub, ind_p
     ind_loc = np.concatenate((ind_max_loc, ind_min_loc))
     ind_loc = np.sort(ind_loc)
     loc_arr = fragment[ind_loc]
@@ -670,13 +697,14 @@ def get_p_amp(fragment, mean_amp_p):
     diff_loc = loc_arr[1:] - loc_arr[:-1]
     abs_diff_loc = np.abs(diff_loc)
     if ind_max_loc.size == 1:
+        ind_p = ind_max_loc[0]
         if ind_min_loc.size == 0:
             amp_pzub = np.min(abs_diff_loc)
         elif ind_min_loc.size == 1:
             if ind_max_loc[0] < ind_min_loc[0]:
                 amp_pzub = np.min(abs_diff_loc[:2])
             elif ind_max_loc[0] > ind_min_loc[0]:
-                amp_pzub = np.min(abs_diff_loc[1:3])
+                amp_pzub = np.min(abs_diff_loc[1:])
         elif ind_min_loc.size == 2:
             amp_pzub = np.min(abs_diff_loc[1:3])
     elif ind_max_loc.size == 2:
@@ -693,14 +721,28 @@ def get_p_amp(fragment, mean_amp_p):
         elif ind_min_loc.size == 3:
             amp_pzub1 = np.min(abs_diff_loc[1:3])
             amp_pzub2 = np.min(abs_diff_loc[3:5])
-        max_amp = np.max([amp_pzub1, amp_pzub2])
-        min_amp = np.min([amp_pzub1, amp_pzub2])
-        div_amp = max_amp / min_amp
-        if div_amp > 1.3: # div_amp > 10.0
-            amp_pzub = max_amp
-    if (amp_pzub > mean_amp_p * 0.01) and (amp_pzub > 0.001):   # (amp_pzub > mean_amp_p * 0.05) and (amp_pzub > 0.0035):
+        if amp_pzub1 > amp_pzub2:
+            amp_pzub = amp_pzub1
+            ind_p = ind_max_loc[0]
+        else:
+            amp_pzub = amp_pzub2
+            ind_p = ind_max_loc[1]
+        # max_amp = np.max([amp_pzub1, amp_pzub2])
+        # amp_pzub = max_amp
+    # elif ind_max_loc.size == 3:
+    #     pzub = 0.5
+    #     amp_pzub = 0.05
+    #     ind_p = int(fragment.size * 0.6)
+    #     return pzub, amp_pzub, ind_p
+    # pos = k * 3 - 3
+    # num = int(4 * 12)
+    # printer.print_var(mean_amp_p * 0.1, pos, num)
+    # printer.print_var(amp_pzub, pos, num)
+    if 5.0 * max_amp_p > amp_pzub > 0.1 * min_amp_p:
         pzub = 1.0
-    return pzub, amp_pzub
+    # printer.print_var(ind_max_loc.size, pos, num)
+    # printer.print_var(ind_min_loc.size, pos, num)
+    return pzub, amp_pzub, ind_p
 
 def win_sum_coef(arr_coef, clean_intervals, len_win):
     out = np.zeros(len(arr_coef))
@@ -715,7 +757,7 @@ def win_sum_coef(arr_coef, clean_intervals, len_win):
     out[-half_win:] = out[-half_win - 1]
     return out
 
-def get_inds_min_diff(intervals, chars):
+def get_inds_min_diff(intervals, chars, forms):
     """
     Возвращает индексы интервалов, где абсолютная разница между
     последовательными интервалами меньше или равна 3.
@@ -730,8 +772,8 @@ def get_inds_min_diff(intervals, chars):
     inds_min_diff = np.array([], dtype=int)
     diff_intervals = np.abs(intervals - np.roll(intervals, -1))
     for i in range(1, diff_intervals.size):
-        min_diff = intervals[i] * 0.05
-        if (diff_intervals[i] <= min_diff) and (chars[i] == "N") and (chars[i-1] == "N"):
+        min_diff = intervals[i] * 0.1 # 0.05
+        if (diff_intervals[i] <= min_diff) and (chars[i] == "N") and (chars[i-1] == "N") and (forms[i] == forms[i - 1]):
             inds_min_diff = np.append(inds_min_diff, i)
     return inds_min_diff
 
@@ -750,13 +792,19 @@ def plot_select_p(lead1, lead2, lead3, intervals, r_pos, mean_PR1, mean_PR2, mea
     Возвращает:
     None
     """
-    len_pr = int(intervals[ind] * 0.36 + 5)
-    start = r_pos[ind] - len_pr
-    # stop = r_pos[ind] - int(len_pr ** 0.5 * 0.66 + 2)
-    stop = r_pos[ind] - 5
-    fragment1 = lead1[start:stop]
-    fragment2 = lead2[start:stop]
-    fragment3 = lead3[start:stop]
+    # len_pr = int(intervals[ind] ** 0.5 * 3.7)
+    # start = r_pos[ind] - len_pr
+    # stop = r_pos[ind] - int(intervals[ind] ** 0.5 * 0.66 + 3.0)
+    stop = r_pos[ind] - 10
+    start1 = r_pos[ind] - mean_PR1[ind] - 17
+    start2 = r_pos[ind] - mean_PR2[ind] - 17
+    start3 = r_pos[ind] - mean_PR3[ind] - 17
+    # stop1 = r_pos[ind] - mean_PR1[ind] + int(mean_PR1[ind] ** 0.5 * 3.0)
+    # stop2 = r_pos[ind] - mean_PR2[ind] + int(mean_PR2[ind] ** 0.5 * 3.0)
+    # stop3 = r_pos[ind] - mean_PR3[ind] + int(mean_PR3[ind] ** 0.5 * 3.0)
+    fragment1 = lead1[start1:stop]
+    fragment2 = lead2[start2:stop]
+    fragment3 = lead3[start3:stop]
     # fragment1[fragment1 < 0.0] = 0.0
     # fragment2[fragment2 < 0.0] = 0.0
     # fragment3[fragment3 < 0.0] = 0.0
@@ -764,27 +812,33 @@ def plot_select_p(lead1, lead2, lead3, intervals, r_pos, mean_PR1, mean_PR2, mea
     p.showGrid(x=True, y=True)
     p.setTitle('p')
     p.plot(fragment1, pen='g')
-    p.plot(fragment2, pen='y')
-    p.plot(fragment3, pen='c')
-    fragment1 = filtfilt(bl, al, fragment1)
-    fragment2 = filtfilt(bl, al, fragment2)
-    fragment3 = filtfilt(bl, al, fragment3)
-    fragment1[fragment1 < 0.0] = 0.0
-    fragment2[fragment2 < 0.0] = 0.0
-    fragment3[fragment3 < 0.0] = 0.0
-    fragment1 = filtfilt(bl, al, fragment1)
-    fragment2 = filtfilt(bl, al, fragment2)
-    fragment3 = filtfilt(bl, al, fragment3)
-    p.plot(fragment1, pen='g')
-    p.plot(fragment2, pen='y')
-    p.plot(fragment3, pen='c')
+    p.plot(fragment2-0.3, pen='g')
+    p.plot(fragment3-0.6, pen='g')
+    fragment1 = filtfilt(bl2, al2, fragment1)
+    fragment1 = filtfilt(bh2, ah2, fragment1)
+    fragment2 = filtfilt(bl2, al2, fragment2)
+    fragment2 = filtfilt(bh2, ah2, fragment2)
+    fragment3 = filtfilt(bl2, al2, fragment3)
+    fragment3 = filtfilt(bh2, ah2, fragment3)
+    fragment1 = fragment1 - np.mean(fragment1)
+    fragment2 = fragment2 - np.mean(fragment2)
+    fragment3 = fragment3 - np.mean(fragment3)
+    # fragment1[fragment1 < 0.0] = 0.0
+    # fragment2[fragment2 < 0.0] = 0.0
+    # fragment3[fragment3 < 0.0] = 0.0
+    # fragment1 = filtfilt(bl, al, fragment1)
+    # fragment2 = filtfilt(bl, al, fragment2)
+    # fragment3 = filtfilt(bl, al, fragment3)
+    p.plot(fragment1, pen='r')
+    p.plot(fragment2-0.3, pen='r')
+    p.plot(fragment3-0.6, pen='r')
     # p02.plot(lead1[r_pos[ind] - 1600:r_pos[ind] + 1600], pen='g')
     # p02.plot(lead2[r_pos[ind] - 1600:r_pos[ind] + 1600] - 2, pen='y')
     # p02.plot(lead3[r_pos[ind] - 1600:r_pos[ind] + 1600] - 4, pen='c')
 
 @time_fun
 def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
-    global bl, al, k
+    # global bl, al, k
     # bl = [0.00475052, 0.01425157, 0.01425157, 0.00475052]
     # al = [1.0, -2.25008508, 1.75640138, -0.46831211]
     # bl = [0.01591456, 0.03182911, 0.01591456]
@@ -806,130 +860,152 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # arr_amp_p1 = np.array([])
     # arr_amp_p2 = np.array([])
     # arr_amp_p3 = np.array([])
-    arr_amp_p1 = np.zeros(r_pos.size)
-    arr_amp_p2 = np.zeros(r_pos.size)
-    arr_amp_p3 = np.zeros(r_pos.size)
+    arr_amp_p1 = np.array([])
+    arr_amp_p2 = np.array([])
+    arr_amp_p3 = np.array([])
 
     for i in inds_min:
-        if (chars[i] == 'N') and (chars[i - 1] == 'N'):  # and (chars[i + 1] == 'N'):
-            len_pr = int(intervals[i] * 0.36 + 5)  # len_pr = int(intervals[i] * 0.36 + 5)
-            start = r_pos[i] - len_pr
-            stop = r_pos[i] - 7  # r_pos[i] - 7
-            # stop = r_pos[i] - int(len_pr * 0.05 + 7)
-            fragment1 = lead1[start:stop]
-            fragment2 = lead2[start:stop]
-            fragment3 = lead3[start:stop]
-            # if (k + 15) > i >= k:
-            #     p04.plot(fragment1 - 0.1, pen='g', title='Fragment1')
-            #     p04.plot(fragment2 - 0.3, pen='y', title='Fragment2')
-            #     p04.plot(fragment3 - 0.5, pen='c', title='Fragment3')
-            fragment1 = filtfilt(bl, al, fragment1)
-            fragment2 = filtfilt(bl, al, fragment2)
-            fragment3 = filtfilt(bl, al, fragment3)
-            fragment1[fragment1 < 0.0] = 0.0
-            fragment2[fragment2 < 0.0] = 0.0
-            fragment3[fragment3 < 0.0] = 0.0
-            fragment1 = filtfilt(bl, al, fragment1)
-            fragment2 = filtfilt(bl, al, fragment2)
-            fragment3 = filtfilt(bl, al, fragment3)
-            # fragment1[fragment1 < 0.0] = 0.0
-            # fragment2[fragment2 < 0.0] = 0.0
-            # fragment3[fragment3 < 0.0] = 0.0
-            # fragment1 = filtfilt(bl, al, fragment1)
-            # fragment2 = filtfilt(bl, al, fragment2)
-            # fragment3 = filtfilt(bl, al, fragment3)
-            # fragment1[fragment1 < 0.0] = 0.0
-            # fragment2[fragment2 < 0.0] = 0.0
-            # fragment3[fragment3 < 0.0] = 0.0
-            # if (k + 15) > i >= k:
-            #     p04.plot(fragment1 - 0.2, pen='g', title='Fragment1')
-            #     p04.plot(fragment2 - 0.4, pen='y', title='Fragment2')
-            #     p04.plot(fragment3 - 0.6, pen='c', title='Fragment3')
-            pos_loc_max_frag1 = argrelmax(fragment1)[0]
-            pos_loc_max_frag2 = argrelmax(fragment2)[0]
-            pos_loc_max_frag3 = argrelmax(fragment3)[0]
+        # if (chars[i] == 'N') and (chars[i - 1] == 'N'):  # and (chars[i + 1] == 'N'):
+        len_pr = int(intervals[i] * 0.4)  # len_pr = int(intervals[i] * 0.36 + 5)
+        start = r_pos[i] - len_pr
+        stop = r_pos[i] - 10  # r_pos[i] - 7
+        # stop = r_pos[i] - int(len_pr * 0.05 + 7)
+        fragment1 = lead1[start:stop]
+        fragment2 = lead2[start:stop]
+        fragment3 = lead3[start:stop]
+        # if (k + 15) > i >= k:
+        #     p04.plot(fragment1 - 0.1, pen='g', title='Fragment1')
+        #     p04.plot(fragment2 - 0.3, pen='y', title='Fragment2')
+        #     p04.plot(fragment3 - 0.5, pen='c', title='Fragment3')
+        fragment1 = filtfilt(bl1, al1, fragment1)
+        fragment2 = filtfilt(bl1, al1, fragment2)
+        fragment3 = filtfilt(bl1, al1, fragment3)
+        fragment1 = filtfilt(bh1, ah1, fragment1)
+        fragment2 = filtfilt(bh1, ah1, fragment2)
+        fragment3 = filtfilt(bh1, ah1, fragment3)
+        # fragment1 = fragment1 - np.mean(fragment1)
+        # fragment2 = fragment2 - np.mean(fragment2)
+        # fragment3 = fragment3 - np.mean(fragment3)
+        # fragment1[fragment1 < 0.0] = 0.0
+        # fragment2[fragment2 < 0.0] = 0.0
+        # fragment3[fragment3 < 0.0] = 0.0
+        pzub1, amp_p1, ind_p1 = get_p_amp(fragment1, 1.0, 0.001)
+        # if ind_p1 == 0: ind_p1 = 40
+        pzub2, amp_p2,ind_p2 = get_p_amp(fragment2, 1.0, 0.001)
+        # if ind_p2 == 0: ind_p2 = 40
+        pzub3, amp_p3, ind_p3 = get_p_amp(fragment3, 1.0, 0.001)
+        # if ind_p3 == 0: ind_p3 = 40
+        stop_point = 0
+        if 1.0 > amp_p1 > 0.001:  # if 1.0 > amp_p1 > 0.001
+            intervals_PR1 = np.append(intervals_PR1, len_pr - ind_p1)
+            inds_PR1 = np.append(inds_PR1, i)
+            arr_amp_p1 = np.append(arr_amp_p1, amp_p1)
+        else:
+            if intervals_PR1.size > 0:
+                intervals_PR1 = np.append(intervals_PR1, np.mean(intervals_PR1))
+                inds_PR1 = np.append(inds_PR1, i)
+        if 1.0 > amp_p2 > 0.001:  # 0.05
+            intervals_PR2 = np.append(intervals_PR2, len_pr - ind_p2)
+            inds_PR2 = np.append(inds_PR2, i)
+            arr_amp_p2 = np.append(arr_amp_p2, amp_p2)
+        else:
+            if intervals_PR2.size > 0:
+                intervals_PR2 = np.append(intervals_PR2, np.mean(intervals_PR2))
+                inds_PR2 = np.append(inds_PR2, i)
+        if 1.0 > amp_p3 > 0.001:
+            intervals_PR3 = np.append(intervals_PR3, len_pr - ind_p3)
+            inds_PR3 = np.append(inds_PR3, i)
+            arr_amp_p3 = np.append(arr_amp_p3, amp_p3)
+        else:
+            if intervals_PR3.size > 0:
+                intervals_PR3 = np.append(intervals_PR3, np.mean(intervals_PR3))
+                inds_PR3 = np.append(inds_PR3, i)
+    mean_amp_p1 = np.median(arr_amp_p1)
+    mean_amp_p2 = np.median(arr_amp_p2)
+    mean_amp_p3 = np.median(arr_amp_p3)
+    max_amp_p1 = np.mean(arr_amp_p1[arr_amp_p1 >= mean_amp_p1])
+    max_amp_p1 = np.mean(arr_amp_p1[arr_amp_p1 >= max_amp_p1])
+    max_amp_p2 = np.mean(arr_amp_p2[arr_amp_p2 >= mean_amp_p2])
+    max_amp_p2 = np.mean(arr_amp_p2[arr_amp_p2 >= max_amp_p2])
+    max_amp_p3 = np.mean(arr_amp_p3[arr_amp_p3 >= mean_amp_p3])
+    max_amp_p3 = np.mean(arr_amp_p3[arr_amp_p3 >= max_amp_p3])
+    min_amp_p1 = np.mean(arr_amp_p1[arr_amp_p1 <= mean_amp_p1])
+    # min_amp_p1 = np.mean(arr_amp_p1[arr_amp_p1 <= min_amp_p1])
+    min_amp_p2 = np.mean(arr_amp_p2[arr_amp_p2 <= mean_amp_p2])
+    # min_amp_p2 = np.mean(arr_amp_p2[arr_amp_p2 <= min_amp_p2])
+    min_amp_p3 = np.mean(arr_amp_p3[arr_amp_p3 <= mean_amp_p3])
+    # min_amp_p3 = np.mean(arr_amp_p3[arr_amp_p3 <= min_amp_p3])
 
-            if pos_loc_max_frag1.size >= 1:
-                ind_max1 = np.argmax(fragment1[pos_loc_max_frag1])
-                isoline1 = np.min(
-                    (np.min(fragment1[:pos_loc_max_frag1[ind_max1]]), np.min(fragment1[pos_loc_max_frag1[ind_max1]:])))
-                amp_p1 = fragment1[pos_loc_max_frag1[ind_max1]] - isoline1
-                if 1.0 > amp_p1 > 0.01:  # if 1.0 > amp_p1 > 0.001
-                    intervals_PR1 = np.append(intervals_PR1, len_pr - pos_loc_max_frag1[ind_max1])
-                    inds_PR1 = np.append(inds_PR1, i)
-                    arr_amp_p1[i] = amp_p1
-            if pos_loc_max_frag2.size >= 1:
-                ind_max2 = np.argmax(fragment2[pos_loc_max_frag2])
-                isoline2 = np.min(
-                    (np.min(fragment2[:pos_loc_max_frag2[ind_max2]]), np.min(fragment2[pos_loc_max_frag2[ind_max2]:])))
-                amp_p2 = fragment2[pos_loc_max_frag2[ind_max2]] - isoline2
-                if 1.0 > amp_p2 > 0.01:  # 0.05
-                    intervals_PR2 = np.append(intervals_PR2, len_pr - pos_loc_max_frag2[ind_max2])
-                    inds_PR2 = np.append(inds_PR2, i)
-                    arr_amp_p2[i] = amp_p2
-            if pos_loc_max_frag3.size >= 1:
-                ind_max3 = np.argmax(fragment3[pos_loc_max_frag3])
-                isoline3 = np.min(
-                    (np.min(fragment3[:pos_loc_max_frag3[ind_max3]]), np.min(fragment3[pos_loc_max_frag3[ind_max3]:])))
-                amp_p3 = fragment3[pos_loc_max_frag3[ind_max3]] - isoline3
-                if 1.0 > amp_p3 > 0.01:
-                    intervals_PR3 = np.append(intervals_PR3, len_pr - pos_loc_max_frag3[ind_max3])
-                    inds_PR3 = np.append(inds_PR3, i)
-                    arr_amp_p3[i] = amp_p3
-    # mean_amp_p1 = np.mean(arr_amp_p1)
-    # mean_amp_p2 = np.mean(arr_amp_p2)
-    # mean_amp_p3 = np.mean(arr_amp_p3)
-    mean_amp_p1 = np.median(arr_amp_p1[arr_amp_p1 > 0.0])
-    mean_amp_p2 = np.median(arr_amp_p2[arr_amp_p2 > 0.0])
-    mean_amp_p3 = np.median(arr_amp_p3[arr_amp_p3 > 0.0])
+    print(f"max_amp_p1: {max_amp_p1}")
     print(f"mean_amp_p1: {mean_amp_p1}")
+    print(f"min_amp_p1: {min_amp_p1}")
+
+    print(f"max_amp_p2: {max_amp_p2}")
     print(f"mean_amp_p2: {mean_amp_p2}")
+    print(f"min_amp_p2: {min_amp_p2}")
+
+    print(f"max_amp_p3: {max_amp_p3}")
     print(f"mean_amp_p3: {mean_amp_p3}")
+    print(f"min_amp_p3: {min_amp_p3}")
+
     mean_PR1 = int(np.median(intervals_PR1))
     mean_PR2 = int(np.median(intervals_PR2))
     mean_PR3 = int(np.median(intervals_PR3))
-    PR = int((mean_PR1 + mean_PR2 + mean_PR3) / 3)
-    mean_PR1 = PR
-    mean_PR2 = PR
-    mean_PR3 = PR
-    # mean_PR1 = int(intervals_PR1.mean())
-    # mean_PR2 = int(intervals_PR2.mean())
-    # mean_PR3 = int(intervals_PR3.mean())
     print(f"mean_PR1: {mean_PR1}     {intervals_PR1.size}")
     print(f"mean_PR2: {mean_PR2}     {intervals_PR2.size}")
     print(f"mean_PR3: {mean_PR3}     {intervals_PR3.size}")
+    # PR = int((mean_PR1 + mean_PR2 + mean_PR3) / 3)
+    # mean_PR1 = PR
+    # mean_PR2 = PR
+    # mean_PR3 = PR
+    # mean_PR1 = int(intervals_PR1.mean())
+    # mean_PR2 = int(intervals_PR2.mean())
+    # mean_PR3 = int(intervals_PR3.mean())
+
     # marr_amp_p1 = interp_pr(arr_amp_p1)
     # marr_amp_p2 = interp_pr(arr_amp_p2)
     # marr_amp_p3 = interp_pr(arr_amp_p3)
     # marr_amp_p1 = moving_average(marr_amp_p1, 15)
     # marr_amp_p2 = moving_average(marr_amp_p2, 15)
     # marr_amp_p3 = moving_average(marr_amp_p3, 15)
+    win_len = 151
+    half_win = win_len // 2
+    if intervals_PR1.size > win_len:  # 21
+        intervals_PR1 = medfilt(intervals_PR1, win_len)
+        intervals_PR1[:half_win] = intervals_PR1[half_win]
+        intervals_PR1[-half_win:] = intervals_PR1[-half_win - 1]
+    if intervals_PR2.size > win_len:
+        intervals_PR2 = medfilt(intervals_PR2, win_len)
+        intervals_PR2[:half_win] = intervals_PR2[half_win]
+        intervals_PR2[-half_win:] = intervals_PR2[-half_win - 1]
+    if intervals_PR3.size > win_len:
+        intervals_PR3 = medfilt(intervals_PR3, win_len)
+        intervals_PR3[:half_win] = intervals_PR3[half_win]
+        intervals_PR3[-half_win:] = intervals_PR3[-half_win - 1]
 
-    # if intervals_PR1.size > 351:  # 21
-    #     intervals_PR1 = moving_average(intervals_PR1, 351)
-    # if intervals_PR2.size > 351:
-    #     intervals_PR2 = moving_average(intervals_PR2, 351)
-    # if intervals_PR3.size > 351:
-    #     intervals_PR3 = moving_average(intervals_PR3, 351)
-
+    # presence_PR1 = np.ones(r_pos.size) * mean_PR1
+    # presence_PR2 = np.ones(r_pos.size) * mean_PR2
+    # presence_PR3 = np.ones(r_pos.size) * mean_PR3
     presence_PR1[inds_PR1] = intervals_PR1
     presence_PR2[inds_PR2] = intervals_PR2
     presence_PR3[inds_PR3] = intervals_PR3
     presence_PR1 = interp_pr(presence_PR1)
     presence_PR2 = interp_pr(presence_PR2)
     presence_PR3 = interp_pr(presence_PR3)
-    presence_PR1 = truncate_win2(presence_PR1, 0.5, 2000)
-    presence_PR2 = truncate_win2(presence_PR2, 0.5, 2000)
-    presence_PR3 = truncate_win2(presence_PR3, 0.5, 2000)
-    presence_PR1 = moving_average(presence_PR1, 2000)
-    presence_PR2 = moving_average(presence_PR2, 2000)
-    presence_PR3 = moving_average(presence_PR3, 2000)
+    presence_PR = med_pr(presence_PR1, presence_PR2, presence_PR3)
+    # presence_PR1 = truncate_win2(presence_PR1, 0.5, 2000)
+    # presence_PR2 = truncate_win2(presence_PR2, 0.5, 2000)
+    # presence_PR3 = truncate_win2(presence_PR3, 0.5, 2000)
+    # presence_PR1 = moving_average(presence_PR1, 2000)
+    # presence_PR2 = moving_average(presence_PR2, 2000)
+    # presence_PR3 = moving_average(presence_PR3, 2000)
     # presence_PR1 = medfilt(presence_PR1, 21)
     # presence_PR2 = medfilt(presence_PR2, 21)
     # presence_PR3 = medfilt(presence_PR3, 21)
     np.save("presence_PR1.npy", presence_PR1)
     np.save("presence_PR2.npy", presence_PR2)
     np.save("presence_PR3.npy", presence_PR3)
+    np.save("presence_PR.npy", presence_PR)
     # presence_PR = np.array([presence_PR1], [presence_PR2], [presence_PR3])
     # presence_PR = np.mean(presence_PR)
     # presence_PR = presence_PR.astype(int)
@@ -955,14 +1031,21 @@ def get_p_pos(lead1, lead2, lead3, intervals, r_pos, chars, inds_min):
     # p03.plot(marr_amp_p1, pen='g')
     # p03.plot(marr_amp_p2 - 1, pen='g')
     # p03.plot(marr_amp_p3 - 2, pen='g')
+    presence_PR1 = presence_PR.astype(int)
+    presence_PR2 = presence_PR.astype(int)
+    presence_PR3 = presence_PR.astype(int)
 
+    return max_amp_p1, max_amp_p2, max_amp_p3, min_amp_p1, min_amp_p2, min_amp_p3, presence_PR1, presence_PR2, presence_PR3
 
-    return mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2, mean_PR3
+def med_pr(presence_PR1, presence_PR2, presence_PR3):
+    out = np.zeros(presence_PR1.size)
+    for i in range(presence_PR1.size):
+        out[i] = np.median([presence_PR1[i], presence_PR2[i], presence_PR3[i]])
+    return out
 
 @time_fun
-def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, mean_PR1, mean_PR2,
+def get_P(lead1, lead2, lead3, intervals, r_pos, chars, max_amp_p1, max_amp_p2, max_amp_p3, min_amp_p1, min_amp_p2, min_amp_p3, mean_PR1, mean_PR2,
           mean_PR3):
-    global bl, al, k, b, a
     # bl = [0.00475052, 0.01425157, 0.01425157, 0.00475052]
     # al = [1.0, -2.25008508, 1.75640138, -0.46831211]
     # bl = [0.01591456, 0.03182911, 0.01591456]
@@ -977,43 +1060,40 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
     p3[:5] = 1.0
     # out = np.ones(len(r_pos), dtype=np.float32) * 7.0
     out = np.zeros(len(r_pos), dtype=np.float32)
-    # buff = np.array([3, 3, 3])
-    # mean_interval = (np.mean(intervals) + 400) * 0.06
-    # mean_interval = (np.mean(intervals) + 400) * 1.5
-
-    mean_PR1_copy = mean_PR1
-    mean_PR2_copy = mean_PR2
-    mean_PR3_copy = mean_PR3
     for i in range(4, len(r_pos)):  # range(4, len(r_pos))
-        start_range_interval = int(intervals[i] ** 0.5 * 3.7)  # int(intervals[i]**0.5 * 3.5)
-        stop_range_interval = int(intervals[i] ** 0.5 * 0.66)
+        start_range_interval = int(intervals[i] * 0.5)  # int(intervals[i]**0.5 * 3.7)
+        # stop_range_interval = int(intervals[i] ** 0.5 * 0.66 + 3.0)
+        stop_range_interval = 10
         start_slice = r_pos[i] - start_range_interval
         end_slice = r_pos[i] - stop_range_interval
-        start_slice1 = r_pos[i] - mean_PR1_copy - 15
-        start_slice2 = r_pos[i] - mean_PR2_copy - 15
-        start_slice3 = r_pos[i] - mean_PR3_copy - 15
+        start_slice1 = r_pos[i] - mean_PR1[i] - 17  # -15
+        start_slice2 = r_pos[i] - mean_PR2[i] - 17
+        start_slice3 = r_pos[i] - mean_PR3[i] - 17
         # fragment_l1 = lead1[start_slice:end_slice]
         # fragment_l2 = lead2[start_slice:end_slice]
         # fragment_l3 = lead3[start_slice:end_slice]
         # if len_pr * 0.2 > 10:
         #     end_slice = r_pos[i] - 10
         # end_slice = start_slice + 30
-        end_slice1 = r_pos[i] - mean_PR1_copy + int(mean_PR1_copy ** 0.5 * 3.0)  # +15
-        end_slice2 = r_pos[i] - mean_PR2_copy + int(mean_PR2_copy ** 0.5 * 3.0)  # +15
-        end_slice3 = r_pos[i] - mean_PR3_copy + int(mean_PR3_copy ** 0.5 * 3.0)  # +15
-        if mean_PR1 > intervals[i] * 0.36:  # // 3
+        end_slice1 = r_pos[i] - stop_range_interval
+        end_slice2 = r_pos[i] - stop_range_interval
+        end_slice3 = r_pos[i] - stop_range_interval
+        # end_slice1 = r_pos[i] - mean_PR1[i] + int(mean_PR1[i] ** 0.5 * 3.0)  # +15
+        # end_slice2 = r_pos[i] - mean_PR2[i] + int(mean_PR2[i] ** 0.5 * 3.0)  # +15
+        # end_slice3 = r_pos[i] - mean_PR3[i] + int(mean_PR3[i] ** 0.5 * 3.0)  # +15
+        if mean_PR1[i] > intervals[i] * 0.38:  # // 3
             # if len_pr < mean_PR1:
             # fragment_l1 = lead1[start_slice1:end_slice1]
             fragment_l1 = lead1[start_slice:end_slice]
         else:
             fragment_l1 = lead1[start_slice1:end_slice1]
-        if mean_PR2 > intervals[i] * 0.36:
+        if mean_PR2[i] > intervals[i] * 0.38:
             # if len_pr < mean_PR2:
             # fragment_l2 = lead2[start_slice2:end_slice2]
             fragment_l2 = lead2[start_slice:end_slice]
         else:
             fragment_l2 = lead2[start_slice2:end_slice2]
-        if mean_PR3 > intervals[i] * 0.36:
+        if mean_PR3[i] > intervals[i] * 0.38:
             # if len_pr < mean_PR3:
             # fragment_l3 = lead3[start_slice3:end_slice3]
             fragment_l3 = lead3[start_slice:end_slice]
@@ -1022,10 +1102,10 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         # fragment_l1 = lead1[r_pos[i] - mean_PR1_copy - 15:r_pos[i] - mean_PR1_copy + 15]  # -+15
         # fragment_l2 = lead2[r_pos[i] - mean_PR2_copy - 15:r_pos[i] - mean_PR2_copy + 15]
         # fragment_l3 = lead3[r_pos[i] - mean_PR3_copy - 15:r_pos[i] - mean_PR3_copy + 15]
-        bp = 0.0
-        amp_p1 = 0.0
-        amp_p2 = 0.0
-        amp_p3 = 0.0
+        # bp = 0.0
+        # amp_p1 = 0.0
+        # amp_p2 = 0.0
+        # amp_p3 = 0.0
         if not (chars[i] == 'N'):
             p1[i] = 1.0
             p2[i] = 1.0
@@ -1034,47 +1114,24 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
             # p2[i] = 0.6
             # p3[i] = 0.6
         else:
-            fragment_l1_f = filtfilt(b, a, fragment_l1)
-            fragment_l1_f[fragment_l1_f < 0.0] = 0.0
-            fragment_l1_f = filtfilt(b, a, fragment_l1_f)
-            # fragment_l1_f = filtfilt(bh, ah, fragment_l1_f)
-            pzub, amp_pzub1 = get_p_amp(fragment_l1_f, mean_amp_p1)
-            p1[i] = pzub
-            # ind_max1 = argrelmax(fragment_l1_f)[0]
-            # if ind_max1.size == 1:  # if ind_max1.size == 1:
-            #     isoline1 = np.max((np.min(fragment_l1_f[:ind_max1[-1]]), np.min(fragment_l1_f[ind_max1[-1]:])))
-            #     amp_p1 = fragment_l1_f[ind_max1[-1]] - isoline1
-            #     if (amp_p1 > mean_amp_p1 * 0.1) and (amp_p1 > 0.001):  # > 0.0001
-            #         # if amp_p1 > 0.0015:   # > 0.0001
-            #         p1[i] = 1.0
-            fragment_l2_f = filtfilt(b, a, fragment_l2)
-            fragment_l2_f[fragment_l2_f < 0.0] = 0.0
-            fragment_l2_f = filtfilt(b, a, fragment_l2_f)
-            # fragment_l2_f = filtfilt(bh, ah, fragment_l2_f)
-            pzub, amp_pzub2 = get_p_amp(fragment_l2_f, mean_amp_p2)
-            p2[i] = pzub
-            # ind_max2 = argrelmax(fragment_l2_f)[0]
-            # if ind_max2.size == 1:
-            #     isoline2 = np.max((np.min(fragment_l2_f[:ind_max2[-1]]), np.min(fragment_l2_f[ind_max2[-1]:])))
-            #     amp_p2 = fragment_l2_f[ind_max2[-1]] - isoline2
-            #     if (amp_p2 > mean_amp_p2 * 0.1) and (amp_p2 > 0.001):
-            #         # if amp_p2 > 0.0015:
-            #         p2[i] = 1.0
-            fragment_l3_f = filtfilt(b, a, fragment_l3)
-            fragment_l3_f[fragment_l3_f < 0.0] = 0.0
-            fragment_l3_f = filtfilt(b, a, fragment_l3_f)
-            # fragment_l3_f = filtfilt(bh, ah, fragment_l3_f)
-            pzub, amp_pzub3 = get_p_amp(fragment_l3_f, mean_amp_p3)
-            p3[i] = pzub
-            # ind_max3 = argrelmax(fragment_l3_f)[0]
-            # if 3 > ind_max3.size >= 1:
-            #     isoline3 = np.max((np.min(fragment_l3_f[:ind_max3[-1]]), np.min(fragment_l3_f[ind_max3[-1]:])))
-            #     amp_p3 = fragment_l3_f[ind_max3[-1]] - isoline3
-            #     if (amp_p3 > mean_amp_p3 * 0.1) and (amp_p3 > 0.001):
-            #         # if amp_p3 > 0.0015:
-            #         p3[i] = 1.0
-
-            # logging.info(f"amp_p1 = {amp_p1:.4f}, amp_p2 = {amp_p2:.4f}, amp_p3 = {amp_p3:.4f}")
+            fragment_l1_f = filtfilt(bl2, al2, fragment_l1)
+            fragment_l1_f = filtfilt(bh2, ah2, fragment_l1_f)
+            # fragment_l1_f = fragment_l1_f - np.mean(fragment_l1_f)
+            # fragment_l1_f[fragment_l1_f < 0.0] = 0.0
+            pzub1, amp_pzub1, _ = get_p_amp(fragment_l1_f, max_amp_p1, min_amp_p1)
+            p1[i] = pzub1
+            fragment_l2_f = filtfilt(bl2, al2, fragment_l2)
+            fragment_l2_f = filtfilt(bh2, ah2, fragment_l2_f)
+            # fragment_l2_f = fragment_l2_f - np.mean(fragment_l2_f)
+            # fragment_l2_f[fragment_l2_f < 0.0] = 0.0
+            pzub2, amp_pzub2, _ = get_p_amp(fragment_l2_f, max_amp_p2, min_amp_p2)
+            p2[i] = pzub2
+            fragment_l3_f = filtfilt(bl2, al2, fragment_l3)
+            fragment_l3_f = filtfilt(bh2, ah2, fragment_l3_f)
+            # fragment_l3_f = fragment_l3_f - np.mean(fragment_l3_f)
+            # fragment_l3_f[fragment_l3_f < 0.0] = 0.0
+            pzub3, amp_pzub3, _ = get_p_amp(fragment_l3_f, max_amp_p3, min_amp_p3)
+            p3[i] = pzub3
         if i == k:
             # app = QApplication(sys.argv)
             # p01 = pg.plot()
@@ -1098,6 +1155,9 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
             print(p2[i - 4:i + 1])
             print(p3[i - 4:i + 1])
             print(f"{amp_pzub1:.5f}, {amp_pzub2:.5f}, {amp_pzub3:.5f}")
+            np.save("fragment_l1_f.npy", fragment_l1_f)
+            np.save("fragment_l2_f.npy", fragment_l2_f)
+            np.save("fragment_l3_f.npy", fragment_l3_f)
         # sum_p1 = np.sum(p1[i - 4:i - 1]) + p1[i-1] * 2.0 + p1[i] * 3.0
         # sum_p2 = np.sum(p2[i - 4:i - 1]) + p2[i-1] * 2.0 + p2[i] * 3.0
         # sum_p3 = np.sum(p3[i - 4:i - 1]) + p3[i-1] * 2.0 + p3[i] * 3.0
@@ -1121,12 +1181,12 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
         #     sum_buff = 15.0
         # elif arr_p[:][2].sum() == 0.0:
         #     sum_buff = 0.0
-        if np.sum(fragment_l1) == 0.0:
-            sum_p1 = (sum_p2 + sum_p3) / 2.0
-        elif np.sum(fragment_l2) == 0.0:
-            sum_p2 = (sum_p1 + sum_p3) / 2.0
-        elif np.sum(fragment_l3) == 0.0:
-            sum_p3 = (sum_p1 + sum_p2) / 2.0
+        # if np.sum(fragment_l1) == 0.0:
+        #     sum_p1 = (sum_p2 + sum_p3) / 2.0
+        # elif np.sum(fragment_l2) == 0.0:
+        #     sum_p2 = (sum_p1 + sum_p3) / 2.0
+        # elif np.sum(fragment_l3) == 0.0:
+        #     sum_p3 = (sum_p1 + sum_p2) / 2.0
         # if ((sum_p1 < 4.5) and (sum_p2 > 4.5) and (sum_p3 > 4.5)) or (
         #         (sum_p1 > 4.5) and (sum_p2 < 4.5) and (sum_p3 < 4.5)):
         #     sum_p1 = (sum_p2 + sum_p3) / 2.0
@@ -1160,9 +1220,12 @@ def get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2
                 (sum_p3 > 2.5) and (sum_p1 < 2.5) and (sum_p2 < 2.5)):
             if sum_p3 < 5.0:
                 sum_p3 = (sum_p1 + sum_p2) / 2.0
-        sum_buff = sum_p1 * sum_p2 * sum_p3 * 0.38  # 0.38
+
+        sum_buff = sum_p1 * sum_p2 * sum_p3 * 0.34  # 0.38
         out[i - 2] = sum_buff
-    out = -(out - np.max(out))
+        # out[i] = sum_buff
+    # out = -(out - np.max(out))
+    out = -(out - 125.0 * 0.34)
     out[:2] = out[2]
     out[-2:] = out[-3]
     return out
@@ -1270,6 +1333,31 @@ def parse_B_txt():
         chars = np.array(chars)
         forms = np.array(forms)
     return r_pos, intervals, chars, forms
+
+class Visual:
+    def __init__(self):
+        self.count = 0
+
+    def print_var(self, var, start, num):
+        if (self.count >= start) and (self.count < start + num):
+            print(var)
+            self.count += 1
+        else:
+            self.count += 1
+
+    def plot_fragment(self, fragment, num):
+        if (self.count >= num) and (self.count < num + 3):
+            p = pg.plot()
+            p.showGrid(x=True, y=True)
+            p.setTitle(f"Plotter{self.count}")
+            p.plot(fragment, pen='g')
+            self.count += 1
+        else:
+            self.count += 1
+
+# printer = Visual()
+plotter = Visual()
+plotter1 = Visual()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
