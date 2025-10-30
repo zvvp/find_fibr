@@ -5,10 +5,10 @@ import pyqtgraph as pg
 from functions import k
 from scipy.signal import butter, filtfilt
 
-# k = 30000
+k = 80781
 b, a = butter(2, 18.0, 'lp', fs=250) # 2, 10.0, 'lp', fs=250
 bi, ai = butter(1, 3.0, 'lp', fs=250)
-bh, ah = butter(10, 1.0, 'hp', fs=250)
+# bh, ah = butter(10, 1.0, 'hp', fs=250)
 app = QApplication(sys.argv)
 
 p = pg.plot()
@@ -28,7 +28,8 @@ try:
     intervals = np.load(fdir + "/intervals.npy")
     # start = r_pos[k] - presence_PR[k] - 17
     # stop = r_pos[k] - 10#int(intervals[k] ** 0.5 * 0.66 + 3.0)
-    len_pr = int(intervals[k] * 0.4) # intervals[k] * 0.36 + 5
+    # len_pr = int(intervals[k] * 0.4) # intervals[k] * 0.36 + 5
+    len_pr = int(intervals[k]**0.5 * 3.7)
     start = r_pos[k] - len_pr
     stop = r_pos[k] - 10
     fragment1 = lead1[start:stop]
@@ -61,9 +62,9 @@ try:
     p.plot(isoline1, pen='y')
     p.plot(isoline2-0.5, pen='y')
     p.plot(isoline3-1.0, pen='y')
-    p1.plot(lead1[r_pos[k]-1000:r_pos[k]+1000], pen='g')
-    p1.plot(lead2[r_pos[k]-1000:r_pos[k]+1000]-2.0, pen='g')
-    p1.plot(lead3[r_pos[k]-1000:r_pos[k]+1000]-4.0, pen='g')
+    p1.plot(lead1[r_pos[k]-800:r_pos[k]+800], pen='g')
+    p1.plot(lead2[r_pos[k]-800:r_pos[k]+800]-2.0, pen='g')
+    p1.plot(lead3[r_pos[k]-800:r_pos[k]+800]-4.0, pen='g')
 except:
     pass
 
