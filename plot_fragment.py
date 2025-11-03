@@ -5,9 +5,9 @@ import pyqtgraph as pg
 from functions import k
 from scipy.signal import butter, filtfilt
 
-k = 80781
+# k = 80781
 b, a = butter(2, 18.0, 'lp', fs=250) # 2, 10.0, 'lp', fs=250
-bi, ai = butter(1, 3.0, 'lp', fs=250)
+bi, ai = butter(1, 4.0, 'lp', fs=250)
 # bh, ah = butter(10, 1.0, 'hp', fs=250)
 app = QApplication(sys.argv)
 
@@ -53,15 +53,21 @@ try:
     # fragment1 = filtfilt(b, a, fragment1)
     # fragment2 = filtfilt(b, a, fragment2)
     # fragment3 = filtfilt(b, a, fragment3)
-    p.plot(ffragment1, pen='r')
-    p.plot(ffragment2-0.5, pen='r')
-    p.plot(ffragment3-1.0, pen='r')
-    isoline1 = filtfilt(bi, ai, fragment1)
-    isoline2 = filtfilt(bi, ai, fragment2)
-    isoline3 = filtfilt(bi, ai, fragment3)
-    p.plot(isoline1, pen='y')
-    p.plot(isoline2-0.5, pen='y')
-    p.plot(isoline3-1.0, pen='y')
+    p.plot(ffragment1, pen='y')
+    p.plot(ffragment2-0.5, pen='y')
+    p.plot(ffragment3-1.0, pen='y')
+    isoline1 = filtfilt(bi, ai, ffragment1)
+    isoline2 = filtfilt(bi, ai, ffragment2)
+    isoline3 = filtfilt(bi, ai, ffragment3)
+    fragment1 = ffragment1 - isoline1
+    fragment2 = ffragment2 - isoline2
+    fragment3 = ffragment3 - isoline3
+    fragment1[fragment1 < 0] = 0
+    fragment2[fragment2 < 0] = 0
+    fragment3[fragment3 < 0] = 0
+    p.plot(fragment1, pen='r')
+    p.plot(fragment3-0.5, pen='r')
+    p.plot(isoline3-1.0, pen='r')
     p1.plot(lead1[r_pos[k]-800:r_pos[k]+800], pen='g')
     p1.plot(lead2[r_pos[k]-800:r_pos[k]+800]-2.0, pen='g')
     p1.plot(lead3[r_pos[k]-800:r_pos[k]+800]-4.0, pen='g')
