@@ -282,3 +282,15 @@ def get_p2p(ch, win):
         win_p2p = np.ptp(ch[i - win:i + win])
         p2p[i] = win_p2p
     return p2p
+
+def magnific_ch(ch, k):
+    mean_ch = np.mean(ch)
+    over_mean = np.mean(ch[ch > mean_ch])
+    # over_mean = np.mean(ch[ch > over_mean])
+    under_mean = np.mean(ch[ch < mean_ch])
+    # under_mean = np.mean(ch[ch < under_mean])
+    half_ch = over_mean - under_mean
+    # print(f"half_ch = {half_ch}")
+    out = half_ch + (ch - half_ch) * k
+    out[out < 0.0] = 0.0
+    return out

@@ -106,11 +106,10 @@ def main():
         coef_p = np.load(fdir + "/coef_p1.npy")
     except FileNotFoundError:
         inds_min = get_inds_min_diff(intervals, chars, forms)
-        max_amp_p1, max_amp_p2, max_amp_p3, min_amp_p1, min_amp_p2, min_amp_p3, mean_PR1, mean_PR2, mean_PR3 = get_p_pos(lead1, lead2, lead3, intervals,
+        mean_amp_p1, mean_amp_p2, mean_amp_p3, presence_PR = get_p_pos(lead1, lead2, lead3, intervals,
                                                                                     r_pos, chars, inds_min)
-        plot_select_p(lead1, lead2, lead3, intervals, r_pos, mean_PR1, mean_PR2, mean_PR3, k)
-        coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, max_amp_p1, max_amp_p2, max_amp_p3, min_amp_p1, min_amp_p2, min_amp_p3, mean_PR1,
-                       mean_PR2, mean_PR3)
+        plot_select_p(lead1, lead2, lead3, intervals, r_pos, presence_PR, k)
+        coef_p = get_P(lead1, lead2, lead3, intervals, r_pos, chars, mean_amp_p1, mean_amp_p2, mean_amp_p3, presence_PR)
         # p.plot(coef_p, pen='g')
         coef_p = step_moving_average(coef_p, 20)
         # p.plot(coef_p, pen='r')
